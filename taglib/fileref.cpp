@@ -245,6 +245,7 @@ namespace
                         AudioProperties::ReadStyle audioPropertiesStyle)
   {
     File *file = nullptr;
+    
     if(false){}
 #ifdef TAGLIB_WITH_VORBIS
     else if(Ogg::Vorbis::File::isSupported(stream))
