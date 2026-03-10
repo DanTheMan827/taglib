@@ -283,7 +283,7 @@ public:
   void testNull_broken_tenc_id3()         { detectNullByContent("broken-tenc.id3"); }
   void testNull_changed_mod()             { detectNullByContent("changed.mod"); }
   void testNull_changed_s3m()             { detectNullByContent("changed.s3m"); }
-  void testNull_changed_xm()             { detectNullByContent("changed.xm"); }
+  void testNull_changed_xm()              { detectNullByContent("changed.xm"); }
   void testNull_compressed_id3_frame_mp3() { detectNullByContent("compressed_id3_frame.mp3"); }
   void testNull_duplicate_id3v2_mp3()     { detectNullByContent("duplicate_id3v2.mp3"); }
   void testNull_excessive_alloc_mp3()     { detectNullByContent("excessive_alloc.mp3"); }
