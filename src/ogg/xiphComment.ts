@@ -63,17 +63,23 @@ export class XiphComment extends Tag {
   }
 
   get year(): number {
-    return parseInt(this.firstFieldValue("DATE"), 10) || 0;
+    const date = parseInt(this.firstFieldValue("DATE"), 10);
+    if (date) return date;
+    return parseInt(this.firstFieldValue("YEAR"), 10) || 0;
   }
   set year(v: number) {
     this.addField("DATE", v > 0 ? String(v) : "", true);
+    this.removeField("YEAR");
   }
 
   get track(): number {
-    return parseInt(this.firstFieldValue("TRACKNUMBER"), 10) || 0;
+    const tn = parseInt(this.firstFieldValue("TRACKNUMBER"), 10);
+    if (tn) return tn;
+    return parseInt(this.firstFieldValue("TRACKNUM"), 10) || 0;
   }
   set track(v: number) {
     this.addField("TRACKNUMBER", v > 0 ? String(v) : "", true);
+    this.removeField("TRACKNUM");
   }
 
   // ---------------------------------------------------------------------------
