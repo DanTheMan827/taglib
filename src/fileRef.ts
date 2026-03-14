@@ -108,6 +108,30 @@ export class FileRef {
           const { AiffFile } = await import('./riff/aiff/aiffFile.js');
           return new AiffFile(stream, readProperties, readStyle);
         }
+        case 'mpc': {
+          const { MpcFile } = await import('./mpc/mpcFile.js');
+          return new MpcFile(stream, readProperties, readStyle);
+        }
+        case 'wavpack': {
+          const { WavPackFile } = await import('./wavpack/wavpackFile.js');
+          return new WavPackFile(stream, readProperties, readStyle);
+        }
+        case 'ape-file': {
+          const { ApeFile } = await import('./ape/apeFile.js');
+          return new ApeFile(stream, readProperties, readStyle);
+        }
+        case 'trueaudio': {
+          const { TrueAudioFile } = await import('./trueaudio/trueAudioFile.js');
+          return new TrueAudioFile(stream, readProperties, readStyle);
+        }
+        case 'dsf': {
+          const { DsfFile } = await import('./dsf/dsfFile.js');
+          return new DsfFile(stream, readProperties, readStyle);
+        }
+        case 'dsdiff': {
+          const { DsdiffFile } = await import('./dsdiff/dsdiffFile.js');
+          return new DsdiffFile(stream, readProperties, readStyle);
+        }
         default:
           return null;
       }

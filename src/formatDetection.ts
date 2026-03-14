@@ -67,10 +67,43 @@ export function detectByContent(stream: IOStream): string | null {
     if (fmt === 'AIFF' || fmt === 'AIFC') return 'aiff';
   }
 
-  // ID3v2 followed by unknown - likely MPEG
-  if (header.length >= 3 && header.mid(0, 3).toString(StringType.Latin1) === 'ID3') return 'mpeg';
+  // MPC: "MPCK" (SV8) or "MP+" (SV7)
+  if (header.containsAt(ByteVector.fromString('MPCK', StringType.Latin1), 0) ||
+      header.containsAt(ByteVector.fromString('MP+', StringType.Latin1), 0)) return 'mpc';
 
-  // MPEG frame sync (MUST BE LAST)
+  // WavPack: "wvpk"
+  if (header.containsAt(ByteVector.fromString('wvpk', StringType.Latin1), 0)) return 'wavpack';
+
+  // APE (Monkey's Audio): "MAC "
+  if (header.containsAt(ByteVector.fromString('MAC ', StringType.Latin1), 0)) return 'ape-file';
+
+  // TrueAudio: "TTA"
+  if (header.length >= 4 && header.mid(0, 3).toString(StringType.Latin1) === 'TTA') return 'trueaudio';
+
+  // DSF: "DSD "
+  if (header.containsAt(ByteVector.fromString('DSD ', StringType.Latin1), 0)) return 'dsf';
+
+  // DSDIFF: "FRM8" at 0 and "DSD " at 12
+  if (header.length >= 16 &&
+      header.containsAt(ByteVector.fromString('FRM8', StringType.Latin1), 0) &&
+      header.containsAt(ByteVector.fromString('DSD ', StringType.Latin1), 12)) return 'dsdiff';
+
+  // ID3v2 followed by unknown - could be MPEG, TrueAudio, or others
+  if (header.length >= 3 && header.mid(0, 3).toString(StringType.Latin1) === 'ID3') {
+    // Try to peek past the ID3v2 header to identify the actual format
+    if (header.length >= 10) {
+      const id3Size = ((header.get(6) & 0x7f) << 21) | ((header.get(7) & 0x7f) << 14) |
+                      ((header.get(8) & 0x7f) << 7) | (header.get(9) & 0x7f);
+      const id3TotalSize = 10 + id3Size;
+      stream.seek(id3TotalSize, Position.Beginning);
+      const afterId3 = stream.readBlock(4);
+      if (afterId3.length >= 3 && afterId3.mid(0, 3).toString(StringType.Latin1) === 'TTA') return 'trueaudio';
+      if (afterId3.length >= 4 && afterId3.mid(0, 4).toString(StringType.Latin1) === 'MAC ') return 'ape-file';
+    }
+    return 'mpeg'; // default for ID3v2 prefix
+  }
+
+  // MPEG frame sync (MUST BE LAST - can false-positive on other formats)
   if (header.length >= 2 && header.get(0) === 0xFF && (header.get(1) & 0xE0) === 0xE0) return 'mpeg';
 
   return null;

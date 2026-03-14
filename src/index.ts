@@ -74,3 +74,28 @@ export { WavFile } from './riff/wav/wavFile.js';
 export { WavProperties } from './riff/wav/wavProperties.js';
 export { AiffFile } from './riff/aiff/aiffFile.js';
 export { AiffProperties } from './riff/aiff/aiffProperties.js';
+
+// MPC
+export { MpcFile } from './mpc/mpcFile.js';
+export { MpcProperties } from './mpc/mpcProperties.js';
+
+// WavPack
+export { WavPackFile } from './wavpack/wavpackFile.js';
+export { WavPackProperties } from './wavpack/wavpackProperties.js';
+
+// APE (file format)
+export { ApeFile } from './ape/apeFile.js';
+export { ApeProperties } from './ape/apeProperties.js';
+
+// TrueAudio
+export { TrueAudioFile } from './trueaudio/trueAudioFile.js';
+export { TrueAudioProperties } from './trueaudio/trueAudioProperties.js';
+
+// DSF
+export { DsfFile } from './dsf/dsfFile.js';
+export { DsfProperties } from './dsf/dsfProperties.js';
+
+// DSDIFF
+export { DsdiffFile } from './dsdiff/dsdiffFile.js';
+export { DsdiffProperties } from './dsdiff/dsdiffProperties.js';
+export { DsdiffDiinTag } from './dsdiff/dsdiffDiinTag.js';
