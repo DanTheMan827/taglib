@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { ByteVector, StringType } from '../../src/byteVector.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
-import { Position } from '../../src/toolkit/types.js';
+import { ByteVector, StringType } from '../src/byteVector.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
+import { Position } from '../src/toolkit/types.js';
 
 describe('ByteVectorStream', () => {
   it('should initialize with data', () => {

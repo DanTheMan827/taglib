@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { genre, genreIndex, genreList, genreMap } from '../../src/mpeg/id3v1/id3v1Genres.js';
+import { genre, genreIndex, genreList, genreMap } from '../src/mpeg/id3v1/id3v1Genres.js';
 
 describe('ID3v1', () => {
   it('should look up genre by index', () => {

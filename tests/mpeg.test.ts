@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { MpegFile } from '../../src/mpeg/mpegFile.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
-import { ReadStyle } from '../../src/toolkit/types.js';
+import { MpegFile } from '../src/mpeg/mpegFile.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
+import { ReadStyle } from '../src/toolkit/types.js';
 import { openTestStream, readTestData } from './testHelper.js';
 
 function openMpegFile(filename: string, readProperties = true, readStyle = ReadStyle.Average): MpegFile {

@@ -1,47 +1,47 @@
 import { describe, it, expect } from 'vitest';
-import { ByteVector, StringType } from '../../src/byteVector.js';
-import { Id3v2Header } from '../../src/mpeg/id3v2/id3v2Header.js';
-import { Id3v2Frame, Id3v2FrameHeader } from '../../src/mpeg/id3v2/id3v2Frame.js';
-import { Id3v2FrameFactory } from '../../src/mpeg/id3v2/id3v2FrameFactory.js';
-import { Id3v2Tag } from '../../src/mpeg/id3v2/id3v2Tag.js';
-import { SynchData } from '../../src/mpeg/id3v2/id3v2SynchData.js';
+import { ByteVector, StringType } from '../src/byteVector.js';
+import { Id3v2Header } from '../src/mpeg/id3v2/id3v2Header.js';
+import { Id3v2Frame, Id3v2FrameHeader } from '../src/mpeg/id3v2/id3v2Frame.js';
+import { Id3v2FrameFactory } from '../src/mpeg/id3v2/id3v2FrameFactory.js';
+import { Id3v2Tag } from '../src/mpeg/id3v2/id3v2Tag.js';
+import { SynchData } from '../src/mpeg/id3v2/id3v2SynchData.js';
 import {
   TextIdentificationFrame,
   UserTextIdentificationFrame,
-} from '../../src/mpeg/id3v2/frames/textIdentificationFrame.js';
-import { CommentsFrame } from '../../src/mpeg/id3v2/frames/commentsFrame.js';
+} from '../src/mpeg/id3v2/frames/textIdentificationFrame.js';
+import { CommentsFrame } from '../src/mpeg/id3v2/frames/commentsFrame.js';
 import {
   AttachedPictureFrame,
   PictureType,
-} from '../../src/mpeg/id3v2/frames/attachedPictureFrame.js';
-import { UniqueFileIdentifierFrame } from '../../src/mpeg/id3v2/frames/uniqueFileIdentifierFrame.js';
-import { UrlLinkFrame, UserUrlLinkFrame } from '../../src/mpeg/id3v2/frames/urlLinkFrame.js';
-import { PopularimeterFrame } from '../../src/mpeg/id3v2/frames/popularimeterFrame.js';
+} from '../src/mpeg/id3v2/frames/attachedPictureFrame.js';
+import { UniqueFileIdentifierFrame } from '../src/mpeg/id3v2/frames/uniqueFileIdentifierFrame.js';
+import { UrlLinkFrame, UserUrlLinkFrame } from '../src/mpeg/id3v2/frames/urlLinkFrame.js';
+import { PopularimeterFrame } from '../src/mpeg/id3v2/frames/popularimeterFrame.js';
 import {
   RelativeVolumeFrame,
   ChannelType,
   PeakVolume,
-} from '../../src/mpeg/id3v2/frames/relativeVolumeFrame.js';
-import { GeneralEncapsulatedObjectFrame } from '../../src/mpeg/id3v2/frames/generalEncapsulatedObjectFrame.js';
-import { PrivateFrame } from '../../src/mpeg/id3v2/frames/privateFrame.js';
-import { UnsynchronizedLyricsFrame } from '../../src/mpeg/id3v2/frames/unsynchronizedLyricsFrame.js';
+} from '../src/mpeg/id3v2/frames/relativeVolumeFrame.js';
+import { GeneralEncapsulatedObjectFrame } from '../src/mpeg/id3v2/frames/generalEncapsulatedObjectFrame.js';
+import { PrivateFrame } from '../src/mpeg/id3v2/frames/privateFrame.js';
+import { UnsynchronizedLyricsFrame } from '../src/mpeg/id3v2/frames/unsynchronizedLyricsFrame.js';
 import {
   SynchronizedLyricsFrame,
   SynchedTextType,
   SynchedText,
-} from '../../src/mpeg/id3v2/frames/synchronizedLyricsFrame.js';
+} from '../src/mpeg/id3v2/frames/synchronizedLyricsFrame.js';
 import {
   EventTimingCodesFrame,
   EventType,
   SynchedEvent,
-} from '../../src/mpeg/id3v2/frames/eventTimingCodesFrame.js';
-import { ChapterFrame } from '../../src/mpeg/id3v2/frames/chapterFrame.js';
-import { TableOfContentsFrame } from '../../src/mpeg/id3v2/frames/tableOfContentsFrame.js';
-import { OwnershipFrame } from '../../src/mpeg/id3v2/frames/ownershipFrame.js';
-import { PodcastFrame } from '../../src/mpeg/id3v2/frames/podcastFrame.js';
-import { MpegFile } from '../../src/mpeg/mpegFile.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
-import { ReadStyle } from '../../src/toolkit/types.js';
+} from '../src/mpeg/id3v2/frames/eventTimingCodesFrame.js';
+import { ChapterFrame } from '../src/mpeg/id3v2/frames/chapterFrame.js';
+import { TableOfContentsFrame } from '../src/mpeg/id3v2/frames/tableOfContentsFrame.js';
+import { OwnershipFrame } from '../src/mpeg/id3v2/frames/ownershipFrame.js';
+import { PodcastFrame } from '../src/mpeg/id3v2/frames/podcastFrame.js';
+import { MpegFile } from '../src/mpeg/mpegFile.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
+import { ReadStyle } from '../src/toolkit/types.js';
 import { byteVectorFromArray, openTestStream, readTestData } from './testHelper.js';
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ByteVector, StringType } from '../../src/byteVector.js';
+import { ByteVector, StringType } from '../src/byteVector.js';
 import { byteVectorFromArray } from './testHelper.js';
 
 describe('ByteVector', () => {

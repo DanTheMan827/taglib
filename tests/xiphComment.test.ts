@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { XiphComment } from '../../src/ogg/xiphComment.js';
+import { XiphComment } from '../src/ogg/xiphComment.js';
 
 describe('XiphComment', () => {
   it('should return 0 for year with no fields', () => {

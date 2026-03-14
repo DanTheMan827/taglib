@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectByExtension, detectByContent, defaultFileExtensions } from '../../src/formatDetection.js';
+import { detectByExtension, detectByContent, defaultFileExtensions } from '../src/formatDetection.js';
 import { openTestStream } from './testHelper.js';
 
 describe('Format Detection', () => {

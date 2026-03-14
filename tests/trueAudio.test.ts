@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { TrueAudioFile, TrueAudioTagTypes } from '../../src/trueaudio/trueAudioFile.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
-import { ReadStyle } from '../../src/toolkit/types.js';
+import { TrueAudioFile, TrueAudioTagTypes } from '../src/trueaudio/trueAudioFile.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
+import { ReadStyle } from '../src/toolkit/types.js';
 import { openTestStream, readTestData } from './testHelper.js';
 
 function openTrueAudioFile(filename: string, readProperties = true, readStyle = ReadStyle.Average): TrueAudioFile {

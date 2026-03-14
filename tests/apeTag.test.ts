@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { ApeTag, ApeItem, ApeItemType, ApeFooter } from '../../src/ape/apeTag.js';
-import { ByteVector, StringType } from '../../src/byteVector.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
+import { ApeTag, ApeItem, ApeItemType, ApeFooter } from '../src/ape/apeTag.js';
+import { ByteVector, StringType } from '../src/byteVector.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
 
 describe('APE Tag', () => {
   it('should create empty tag', () => {

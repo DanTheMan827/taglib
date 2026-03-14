@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Variant, VariantType } from '../../src/toolkit/variant.js';
-import { ByteVector, StringType } from '../../src/byteVector.js';
+import { Variant, VariantType } from '../src/toolkit/variant.js';
+import { ByteVector, StringType } from '../src/byteVector.js';
 
 describe('Variant', () => {
   it('should create void variant', () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { DsfFile } from '../../src/dsf/dsfFile.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
-import { ReadStyle } from '../../src/toolkit/types.js';
+import { DsfFile } from '../src/dsf/dsfFile.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
+import { ReadStyle } from '../src/toolkit/types.js';
 import { openTestStream, readTestData } from './testHelper.js';
 
 function openDsfFile(filename: string, readProperties = true, readStyle = ReadStyle.Average): DsfFile {

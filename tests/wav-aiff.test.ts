@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { WavFile } from '../../src/riff/wav/wavFile.js';
-import { AiffFile } from '../../src/riff/aiff/aiffFile.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
-import { ReadStyle } from '../../src/toolkit/types.js';
+import { WavFile } from '../src/riff/wav/wavFile.js';
+import { AiffFile } from '../src/riff/aiff/aiffFile.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
+import { ReadStyle } from '../src/toolkit/types.js';
 import { openTestStream, readTestData } from './testHelper.js';
 
 describe('WAV', () => {

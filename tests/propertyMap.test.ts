@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PropertyMap } from '../../src/toolkit/propertyMap.js';
+import { PropertyMap } from '../src/toolkit/propertyMap.js';
 
 describe('PropertyMap', () => {
   it('should store and retrieve values', () => {

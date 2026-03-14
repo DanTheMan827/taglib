@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { ByteVector } from '../../src/byteVector.js';
-import { SynchData } from '../../src/mpeg/id3v2/id3v2SynchData.js';
+import { ByteVector } from '../src/byteVector.js';
+import { SynchData } from '../src/mpeg/id3v2/id3v2SynchData.js';
 import { byteVectorFromArray } from './testHelper.js';
 
 describe('SynchData', () => {

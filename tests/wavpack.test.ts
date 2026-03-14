@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { WavPackFile, WavPackTagTypes } from '../../src/wavpack/wavpackFile.js';
-import { ReadStyle } from '../../src/toolkit/types.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
+import { WavPackFile, WavPackTagTypes } from '../src/wavpack/wavpackFile.js';
+import { ReadStyle } from '../src/toolkit/types.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
 import { openTestStream, readTestDataBV } from './testHelper.js';
 
 function openWavPackFile(filename: string, readProperties = true, readStyle = ReadStyle.Average): WavPackFile {

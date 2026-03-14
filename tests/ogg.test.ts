@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { OggVorbisFile } from '../../src/ogg/vorbis/vorbisFile.js';
-import { OggOpusFile } from '../../src/ogg/opus/opusFile.js';
-import { OggSpeexFile } from '../../src/ogg/speex/speexFile.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
-import { ReadStyle } from '../../src/toolkit/types.js';
+import { OggVorbisFile } from '../src/ogg/vorbis/vorbisFile.js';
+import { OggOpusFile } from '../src/ogg/opus/opusFile.js';
+import { OggSpeexFile } from '../src/ogg/speex/speexFile.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
+import { ReadStyle } from '../src/toolkit/types.js';
 import { openTestStream, readTestData } from './testHelper.js';
 
 describe('OGG Vorbis', () => {

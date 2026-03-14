@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { MpcFile, MpcTagTypes } from '../../src/mpc/mpcFile.js';
-import { ReadStyle } from '../../src/toolkit/types.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
+import { MpcFile, MpcTagTypes } from '../src/mpc/mpcFile.js';
+import { ReadStyle } from '../src/toolkit/types.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
 import { openTestStream, readTestDataBV } from './testHelper.js';
 
 function openMpcFile(filename: string, readProperties = true, readStyle = ReadStyle.Average): MpcFile {

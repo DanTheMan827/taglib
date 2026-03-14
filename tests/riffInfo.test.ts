@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { RiffInfoTag } from '../../src/riff/infoTag.js';
+import { RiffInfoTag } from '../src/riff/infoTag.js';
 
 describe('RIFF Info Tag', () => {
   it('should create empty tag', () => {

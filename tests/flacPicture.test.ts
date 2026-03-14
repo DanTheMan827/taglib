@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { FlacPicture } from '../../src/flac/flacPicture.js';
-import { ByteVector, StringType } from '../../src/byteVector.js';
+import { FlacPicture } from '../src/flac/flacPicture.js';
+import { ByteVector, StringType } from '../src/byteVector.js';
 
 describe('FlacPicture', () => {
   const pictureData = new Uint8Array([

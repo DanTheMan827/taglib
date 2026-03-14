@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { Mp4File } from '../../src/mp4/mp4File.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
-import { ReadStyle } from '../../src/toolkit/types.js';
+import { Mp4File } from '../src/mp4/mp4File.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
+import { ReadStyle } from '../src/toolkit/types.js';
 import { openTestStream, readTestData } from './testHelper.js';
 
 function openMp4File(filename: string, readProperties = true, readStyle = ReadStyle.Average): Mp4File {

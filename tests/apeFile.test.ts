@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { ApeFile, ApeFileTagTypes } from '../../src/ape/apeFile.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
-import { ReadStyle } from '../../src/toolkit/types.js';
+import { ApeFile, ApeFileTagTypes } from '../src/ape/apeFile.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
+import { ReadStyle } from '../src/toolkit/types.js';
 import { openTestStream, readTestData } from './testHelper.js';
 
 function openApeFile(filename: string, readProperties = true, readStyle = ReadStyle.Average): ApeFile {

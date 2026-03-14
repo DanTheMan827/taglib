@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { DsdiffFile } from '../../src/dsdiff/dsdiffFile.js';
-import { ByteVectorStream } from '../../src/toolkit/byteVectorStream.js';
-import { ReadStyle } from '../../src/toolkit/types.js';
+import { DsdiffFile } from '../src/dsdiff/dsdiffFile.js';
+import { ByteVectorStream } from '../src/toolkit/byteVectorStream.js';
+import { ReadStyle } from '../src/toolkit/types.js';
 import { openTestStream, readTestData } from './testHelper.js';
 
 function openDsdiffFile(filename: string, readProperties = true, readStyle = ReadStyle.Average): DsdiffFile {
