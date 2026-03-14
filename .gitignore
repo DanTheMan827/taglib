@@ -6,4 +6,5 @@
 /doc/html
 .cache
 .idea
-
+node_modules/
+dist/
