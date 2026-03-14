@@ -1,7 +1,7 @@
 import { ByteVector, StringType } from "../byteVector.js";
 import { File } from "../file.js";
 import { Tag } from "../tag.js";
-import type { offset_t, ReadStyle } from "../toolkit/types.js";
+import { type offset_t, ReadStyle } from "../toolkit/types.js";
 import type { IOStream } from "../toolkit/ioStream.js";
 import { Id3v2Tag } from "../mpeg/id3v2/id3v2Tag.js";
 import { DsfProperties } from "./dsfProperties.js";
@@ -29,7 +29,7 @@ export class DsfFile extends File {
   constructor(
     stream: IOStream,
     readProperties: boolean = true,
-    readStyle: ReadStyle = 1, // ReadStyle.Average
+    readStyle: ReadStyle = ReadStyle.Average,
   ) {
     super(stream);
     if (this.isOpen) {
