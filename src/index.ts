@@ -103,3 +103,25 @@ export { DsfProperties } from './dsf/dsfProperties.js';
 export { DsdiffFile } from './dsdiff/dsdiffFile.js';
 export { DsdiffProperties } from './dsdiff/dsdiffProperties.js';
 export { DsdiffDiinTag } from './dsdiff/dsdiffDiinTag.js';
+
+// MOD (tracker formats shared tag)
+export { ModTag } from './mod/modTag.js';
+export { ModFile } from './mod/modFile.js';
+export { ModProperties } from './mod/modProperties.js';
+
+// S3M
+export { S3mFile } from './s3m/s3mFile.js';
+export { S3mProperties } from './s3m/s3mProperties.js';
+
+// XM
+export { XmFile } from './xm/xmFile.js';
+export { XmProperties } from './xm/xmProperties.js';
+
+// IT
+export { ItFile } from './it/itFile.js';
+export { ItProperties } from './it/itProperties.js';
+
+// Shorten
+export { ShortenFile } from './shorten/shortenFile.js';
+export { ShortenProperties } from './shorten/shortenProperties.js';
+export { ShortenTag } from './shorten/shortenTag.js';

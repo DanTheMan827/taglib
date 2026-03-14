@@ -132,6 +132,26 @@ export class FileRef {
           const { DsdiffFile } = await import('./dsdiff/dsdiffFile.js');
           return new DsdiffFile(stream, readProperties, readStyle);
         }
+        case 'mod': {
+          const { ModFile } = await import('./mod/modFile.js');
+          return new ModFile(stream, readProperties, readStyle);
+        }
+        case 's3m': {
+          const { S3mFile } = await import('./s3m/s3mFile.js');
+          return new S3mFile(stream, readProperties, readStyle);
+        }
+        case 'xm': {
+          const { XmFile } = await import('./xm/xmFile.js');
+          return new XmFile(stream, readProperties, readStyle);
+        }
+        case 'it': {
+          const { ItFile } = await import('./it/itFile.js');
+          return new ItFile(stream, readProperties, readStyle);
+        }
+        case 'shorten': {
+          const { ShortenFile } = await import('./shorten/shortenFile.js');
+          return new ShortenFile(stream, readProperties, readStyle);
+        }
         default:
           return null;
       }

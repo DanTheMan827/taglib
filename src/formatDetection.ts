@@ -103,6 +103,32 @@ export function detectByContent(stream: IOStream): string | null {
     return 'mpeg'; // default for ID3v2 prefix
   }
 
+  // XM: "Extended Module: " at offset 0
+  if (header.length >= 17 && header.mid(0, 17).toString(StringType.Latin1) === 'Extended Module: ') return 'xm';
+
+  // IT: "IMPM" at offset 0
+  if (header.containsAt(ByteVector.fromString('IMPM', StringType.Latin1), 0)) return 'it';
+
+  // Shorten: magic 0x616A6B67 ("ajkg") at offset 0
+  if (header.containsAt(ByteVector.fromString('ajkg', StringType.Latin1), 0)) return 'shorten';
+
+  // S3M: "SCRM" at offset 44
+  if (stream.length() >= 48) {
+    stream.seek(44, Position.Beginning);
+    const s3mMagic = stream.readBlock(4);
+    if (s3mMagic.length >= 4 && s3mMagic.toString(StringType.Latin1) === 'SCRM') return 's3m';
+  }
+
+  // MOD: known tag at offset 1080
+  if (stream.length() >= 1084) {
+    stream.seek(1080, Position.Beginning);
+    const modTag = stream.readBlock(4);
+    if (modTag.length >= 4) {
+      const id = modTag.toString(StringType.Latin1);
+      if (isKnownModTag(id)) return 'mod';
+    }
+  }
+
   // MPEG frame sync (MUST BE LAST - can false-positive on other formats)
   if (header.length >= 2 && header.get(0) === 0xFF && (header.get(1) & 0xE0) === 0xE0) return 'mpeg';
 
@@ -121,6 +147,25 @@ export function detectOggSubFormat(stream: IOStream): string {
   if (buf.find(speexId) >= 0) return 'ogg-speex';
   if (buf.find(flacId) >= 0) return 'ogg-flac';
   return 'ogg-vorbis';
+}
+
+function isKnownModTag(id: string): boolean {
+  if (id === 'M.K.' || id === 'M!K!' || id === 'M&K!' || id === 'N.T.') return true;
+  if (id === 'CD81' || id === 'OKTA') return true;
+  if (id.startsWith('FLT') || id.startsWith('TDZ')) {
+    const d = id.charCodeAt(3);
+    return d >= 0x30 && d <= 0x39;
+  }
+  if (id.endsWith('CHN')) {
+    const d = id.charCodeAt(0);
+    return d >= 0x30 && d <= 0x39;
+  }
+  if (id.endsWith('CH') || id.endsWith('CN')) {
+    const d0 = id.charCodeAt(0);
+    const d1 = id.charCodeAt(1);
+    return d0 >= 0x30 && d0 <= 0x39 && d1 >= 0x30 && d1 <= 0x39;
+  }
+  return false;
 }
 
 export function defaultFileExtensions(): string[] {
