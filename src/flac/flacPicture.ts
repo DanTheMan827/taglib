@@ -74,19 +74,24 @@ export class FlacPicture {
     const mimeBytes = ByteVector.fromString(this.mimeType, StringType.UTF8);
     const descBytes = ByteVector.fromString(this.description, StringType.UTF8);
 
-    const result = new ByteVector();
-    result.append(ByteVector.fromUInt(this.pictureType, true));
-    result.append(ByteVector.fromUInt(mimeBytes.length, true));
-    result.append(mimeBytes);
-    result.append(ByteVector.fromUInt(descBytes.length, true));
-    result.append(descBytes);
-    result.append(ByteVector.fromUInt(this.width, true));
-    result.append(ByteVector.fromUInt(this.height, true));
-    result.append(ByteVector.fromUInt(this.colorDepth, true));
-    result.append(ByteVector.fromUInt(this.numColors, true));
-    result.append(ByteVector.fromUInt(this.data.length, true));
-    result.append(this.data);
+    // Pre-calculate total size: 4*9 fixed fields + mimeType + description + data
+    const totalSize = 4 + 4 + mimeBytes.length + 4 + descBytes.length + 4 + 4 + 4 + 4 + 4 + this.data.length;
+    const arr = new Uint8Array(totalSize);
+    const view = new DataView(arr.buffer);
+    let pos = 0;
 
-    return result;
+    view.setUint32(pos, this.pictureType); pos += 4;
+    view.setUint32(pos, mimeBytes.length); pos += 4;
+    arr.set(mimeBytes.data, pos); pos += mimeBytes.length;
+    view.setUint32(pos, descBytes.length); pos += 4;
+    arr.set(descBytes.data, pos); pos += descBytes.length;
+    view.setUint32(pos, this.width); pos += 4;
+    view.setUint32(pos, this.height); pos += 4;
+    view.setUint32(pos, this.colorDepth); pos += 4;
+    view.setUint32(pos, this.numColors); pos += 4;
+    view.setUint32(pos, this.data.length); pos += 4;
+    arr.set(this.data.data, pos);
+
+    return new ByteVector(arr);
   }
 }

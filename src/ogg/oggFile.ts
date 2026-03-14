@@ -34,14 +34,13 @@ function renderOggPages(
   packets: ByteVector[],
   serialNumber: number,
 ): ByteVector {
-  const result = new ByteVector();
+  // Collect all rendered page chunks, then concatenate once at the end
+  // to avoid O(n²) from repeated ByteVector.append() calls.
+  const chunks: Uint8Array[] = [];
+  let totalSize = 0;
   let pageSequence = 0;
   // eslint-disable-next-line no-useless-assignment
   let granulePosition = 0n;
-
-  // We need to track granule position from the original pages.
-  // For simplicity, we set granule to 0 for header pages and use -1 (0xFFFFFFFFFFFFFFFF)
-  // for the last page if we don't know.
 
   for (let pktIdx = 0; pktIdx < packets.length; pktIdx++) {
     const pkt = packets[pktIdx];
@@ -127,7 +126,8 @@ function renderOggPages(
       fullPage[24] = (crc >> 16) & 0xFF;
       fullPage[25] = (crc >> 24) & 0xFF;
 
-      result.append(ByteVector.fromByteArray(fullPage));
+      chunks.push(fullPage);
+      totalSize += fullPage.length;
 
       pageSequence++;
       segOffset += pageSegCount;
@@ -135,7 +135,14 @@ function renderOggPages(
     }
   }
 
-  return result;
+  // Single-pass concatenation of all page chunks
+  const output = new Uint8Array(totalSize);
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return new ByteVector(output);
 }
 
 /**

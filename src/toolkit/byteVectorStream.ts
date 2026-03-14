@@ -54,9 +54,8 @@ export class ByteVectorStream extends IOStream {
       this._data.resize(end);
     }
 
-    for (let i = 0; i < data.length; i++) {
-      this._data.set(this._position + i, data.get(i));
-    }
+    // Use Uint8Array.set() for efficient bulk copy
+    this._data.data.set(data.data, this._position);
     this._position = end;
   }
 
@@ -66,13 +65,26 @@ export class ByteVectorStream extends IOStream {
       this._data.resize(start);
     }
 
-    const before = this._data.mid(0, start);
-    const after = this._data.mid(start + replace);
+    const beforeLen = start;
+    const afterStart = start + replace;
+    const afterLen = Math.max(0, this._data.length - afterStart);
+    const newSize = beforeLen + data.length + afterLen;
 
-    this._data = ByteVector.fromByteVector(before);
-    this._data.append(data);
-    this._data.append(after);
+    const newArr = new Uint8Array(newSize);
+    // Copy "before" section
+    if (beforeLen > 0) {
+      newArr.set(this._data.data.subarray(0, beforeLen), 0);
+    }
+    // Copy inserted data
+    if (data.length > 0) {
+      newArr.set(data.data, beforeLen);
+    }
+    // Copy "after" section
+    if (afterLen > 0) {
+      newArr.set(this._data.data.subarray(afterStart, afterStart + afterLen), beforeLen + data.length);
+    }
 
+    this._data = new ByteVector(newArr);
     this._position = start + data.length;
   }
 
@@ -81,11 +93,20 @@ export class ByteVectorStream extends IOStream {
       return;
     }
 
-    const before = this._data.mid(0, start);
-    const after = this._data.mid(start + length);
+    const beforeLen = start;
+    const afterStart = start + length;
+    const afterLen = Math.max(0, this._data.length - afterStart);
+    const newSize = beforeLen + afterLen;
 
-    this._data = ByteVector.fromByteVector(before);
-    this._data.append(after);
+    const newArr = new Uint8Array(newSize);
+    if (beforeLen > 0) {
+      newArr.set(this._data.data.subarray(0, beforeLen), 0);
+    }
+    if (afterLen > 0) {
+      newArr.set(this._data.data.subarray(afterStart, afterStart + afterLen), beforeLen);
+    }
+
+    this._data = new ByteVector(newArr);
 
     if (this._position > start && this._position < start + length) {
       this._position = start;

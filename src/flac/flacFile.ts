@@ -10,6 +10,7 @@ import { Id3v2Tag } from "../mpeg/id3v2/id3v2Tag.js";
 import { Id3v2Header } from "../mpeg/id3v2/id3v2Header.js";
 import { FlacPicture } from "./flacPicture.js";
 import { FlacProperties } from "./flacProperties.js";
+import { Variant, type VariantMap } from "../toolkit/variant.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -125,7 +126,9 @@ export class FlacFile extends File {
     // Render all metadata blocks into a single buffer
     // -----------------------------------------------------------------------
 
-    const data = new ByteVector();
+    // Collect all block chunks first, then concatenate once to avoid O(n²)
+    const blockChunks: Uint8Array[] = [];
+    let totalBlockSize = 0;
     for (const block of newBlocks) {
       const blockData = block.data;
       const header = ByteVector.fromUInt(blockData.length, true);
@@ -134,8 +137,10 @@ export class FlacFile extends File {
         continue; // skip oversized blocks
       }
       header.set(0, block.code);
-      data.append(header);
-      data.append(blockData);
+      blockChunks.push(header.data);
+      totalBlockSize += header.length;
+      blockChunks.push(blockData.data);
+      totalBlockSize += blockData.length;
     }
 
     // -----------------------------------------------------------------------
@@ -143,7 +148,7 @@ export class FlacFile extends File {
     // -----------------------------------------------------------------------
 
     const originalLength = this._streamStart - this._flacStart;
-    let paddingLength = originalLength - data.length - 4;
+    let paddingLength = originalLength - totalBlockSize - 4;
 
     if (paddingLength <= 0) {
       paddingLength = MIN_PADDING_LENGTH;
@@ -158,8 +163,20 @@ export class FlacFile extends File {
 
     const paddingHeader = ByteVector.fromUInt(paddingLength, true);
     paddingHeader.set(0, BlockType.Padding | LAST_BLOCK_FLAG);
-    data.append(paddingHeader);
-    data.append(ByteVector.fromSize(paddingLength, 0));
+    blockChunks.push(paddingHeader.data);
+    totalBlockSize += paddingHeader.length;
+    const paddingData = new Uint8Array(paddingLength);
+    blockChunks.push(paddingData);
+    totalBlockSize += paddingLength;
+
+    // Single-pass concatenation
+    const dataArr = new Uint8Array(totalBlockSize);
+    let dataOffset = 0;
+    for (const chunk of blockChunks) {
+      dataArr.set(chunk, dataOffset);
+      dataOffset += chunk.length;
+    }
+    const data = new ByteVector(dataArr);
 
     // Write metadata blocks (replace old region after "fLaC")
     this.insert(data, this._flacStart, originalLength);
@@ -249,6 +266,66 @@ export class FlacFile extends File {
 
   removePictures(): void {
     this._pictures = [];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Complex properties — FLAC picture block support
+  // ---------------------------------------------------------------------------
+
+  override complexPropertyKeys(): string[] {
+    const keys = super.complexPropertyKeys();
+    if (this._pictures.length > 0 && !keys.includes("PICTURE")) {
+      keys.push("PICTURE");
+    }
+    return keys;
+  }
+
+  override complexProperties(key: string): VariantMap[] {
+    if (key.toUpperCase() === "PICTURE") {
+      const result: VariantMap[] = [];
+      for (const pic of this._pictures) {
+        const m: VariantMap = new Map();
+        m.set("data", Variant.fromByteVector(pic.data));
+        m.set("mimeType", Variant.fromString(pic.mimeType));
+        m.set("description", Variant.fromString(pic.description));
+        m.set("pictureType", Variant.fromInt(pic.pictureType));
+        m.set("width", Variant.fromInt(pic.width));
+        m.set("height", Variant.fromInt(pic.height));
+        m.set("numColors", Variant.fromInt(pic.numColors));
+        m.set("colorDepth", Variant.fromInt(pic.colorDepth));
+        result.push(m);
+      }
+      return result;
+    }
+    return super.complexProperties(key);
+  }
+
+  override setComplexProperties(key: string, value: VariantMap[]): boolean {
+    if (key.toUpperCase() === "PICTURE") {
+      this._pictures = [];
+      for (const m of value) {
+        const pic = new FlacPicture();
+        const dataV = m.get("data");
+        if (dataV) pic.data = dataV.toByteVector();
+        const mimeV = m.get("mimeType");
+        if (mimeV) pic.mimeType = mimeV.toString();
+        const descV = m.get("description");
+        if (descV) pic.description = descV.toString();
+        const typeV = m.get("pictureType");
+        if (typeV) pic.pictureType = typeV.toInt();
+        const widthV = m.get("width");
+        if (widthV) pic.width = widthV.toInt();
+        const heightV = m.get("height");
+        if (heightV) pic.height = heightV.toInt();
+        const numColorsV = m.get("numColors");
+        if (numColorsV) pic.numColors = numColorsV.toInt();
+        const colorDepthV = m.get("colorDepth");
+        if (colorDepthV) pic.colorDepth = colorDepthV.toInt();
+        this._pictures.push(pic);
+      }
+      return true;
+    }
+    return super.setComplexProperties(key, value);
   }
 
   // ---------------------------------------------------------------------------

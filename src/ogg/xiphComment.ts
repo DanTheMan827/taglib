@@ -350,35 +350,43 @@ export class XiphComment extends Tag {
       StringType.UTF8,
     );
 
-    const result = new ByteVector();
-    result.append(ByteVector.fromUInt(vendorBytes.length, false));
-    result.append(vendorBytes);
-
-    // Count total individual entries
-    let entryCount = 0;
+    // Collect all entries first
     const entries: ByteVector[] = [];
     for (const [key, values] of this._fields) {
       for (const value of values) {
-        const entry = ByteVector.fromString(
-          `${key}=${value}`,
-          StringType.UTF8,
-        );
-        entries.push(entry);
-        entryCount++;
+        entries.push(ByteVector.fromString(`${key}=${value}`, StringType.UTF8));
       }
     }
 
-    result.append(ByteVector.fromUInt(entryCount, false));
+    // Calculate total size: vendor length(4) + vendor + entry count(4) + entries(length(4) + data each) + optional framing
+    let totalSize = 4 + vendorBytes.length + 4;
     for (const entry of entries) {
-      result.append(ByteVector.fromUInt(entry.length, false));
-      result.append(entry);
+      totalSize += 4 + entry.length;
+    }
+    if (addFramingBit) totalSize += 1;
+
+    const arr = new Uint8Array(totalSize);
+    const view = new DataView(arr.buffer);
+    let pos = 0;
+
+    // Vendor string (little-endian length + data)
+    view.setUint32(pos, vendorBytes.length, true); pos += 4;
+    arr.set(vendorBytes.data, pos); pos += vendorBytes.length;
+
+    // Entry count (little-endian)
+    view.setUint32(pos, entries.length, true); pos += 4;
+
+    // Entries (little-endian length + data each)
+    for (const entry of entries) {
+      view.setUint32(pos, entry.length, true); pos += 4;
+      arr.set(entry.data, pos); pos += entry.length;
     }
 
     if (addFramingBit) {
-      result.append(0x01);
+      arr[pos] = 0x01;
     }
 
-    return result;
+    return new ByteVector(arr);
   }
 
   // ---------------------------------------------------------------------------
