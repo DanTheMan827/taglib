@@ -13,7 +13,8 @@ CMakeLists.txt.user*
 *.suo
 *.user
 .*
-!.github/workflows/
+!.github
+!.github/**
 *~
 /CMakeCache.txt
 /Doxyfile
