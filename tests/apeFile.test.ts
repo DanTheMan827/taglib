@@ -88,14 +88,14 @@ describe("APE", () => {
   it("testFuzzedFile1 - longloop.ape", () => {
     expect(() => {
       const f = openApeFile("longloop.ape");
-      expect(f.isValid).toBeDefined();
+      expect(typeof f.isValid).toBe("boolean");
     }).not.toThrow();
   });
 
   it("testFuzzedFile2 - zerodiv.ape", () => {
     expect(() => {
       const f = openApeFile("zerodiv.ape");
-      expect(f.isValid).toBeDefined();
+      expect(typeof f.isValid).toBe("boolean");
     }).not.toThrow();
   });
 

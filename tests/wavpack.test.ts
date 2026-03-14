@@ -54,6 +54,7 @@ describe("WavPack", () => {
         expect(props.channels).toBe(2);
         expect(props.sampleRate).toBe(352800);
         expect(props.bitsPerSample).toBe(8);
+        // Bitrate is ~2097 kbps but rounding differs between integer arithmetic implementations
         expect(props.bitrate).toBeGreaterThanOrEqual(2096);
         expect(props.bitrate).toBeLessThanOrEqual(2098);
         expect(props.sampleFrames).toBe(70560);
