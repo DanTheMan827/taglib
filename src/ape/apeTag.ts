@@ -139,6 +139,11 @@ export class ApeFooter {
     return (this.flags & 0x80000000) !== 0;
   }
 
+  /** Total tag size including header (if present), items, and footer. */
+  get completeTagSize(): number {
+    return this.hasHeader ? this.tagSize + ApeFooter.SIZE : this.tagSize;
+  }
+
   /**
    * Parse a 32-byte block as an APE footer/header.
    */

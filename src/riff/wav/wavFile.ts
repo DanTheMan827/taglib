@@ -114,6 +114,14 @@ export class WavFile extends RiffFile {
       }
     }
 
+    // Ensure default tags exist
+    if (!this._id3v2Tag) {
+      this._id3v2Tag = new Id3v2Tag();
+    }
+    if (!this._infoTag) {
+      this._infoTag = new RiffInfoTag();
+    }
+
     // Build combined tag (ID3v2 higher priority)
     this._combinedTag.setTags([this._id3v2Tag, this._infoTag]);
 

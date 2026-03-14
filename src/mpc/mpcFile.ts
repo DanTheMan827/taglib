@@ -308,9 +308,9 @@ export class MpcFile extends File {
     const footer = ApeFooter.parse(footerData);
     if (!footer) return;
 
-    this._apeLocation = searchEnd - footer.tagSize;
-    this._apeOriginalSize = footer.tagSize;
-    this._apeTag = ApeTag.readFrom(this._stream, this._apeLocation);
+    this._apeLocation = footerOffset + ApeFooter.SIZE - footer.completeTagSize;
+    this._apeOriginalSize = footer.completeTagSize;
+    this._apeTag = ApeTag.readFrom(this._stream, footerOffset);
   }
 
   private refreshCombinedTag(): void {

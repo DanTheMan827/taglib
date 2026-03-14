@@ -299,13 +299,17 @@ export class MpegFile extends File {
     // 3. Find & parse APE
     this.findAPE();
 
-    // Build combined tag (priority: ID3v2 > APE > ID3v1)
-    this.refreshCombinedTag();
-
     // 4. Audio properties
     if (readProperties) {
       this._properties = new MpegProperties(this, readStyle);
     }
+
+    // Make sure that we have our default tag types available.
+    this.id3v2Tag(true);
+    this.id3v1Tag(true);
+
+    // Build combined tag (priority: ID3v2 > APE > ID3v1)
+    this.refreshCombinedTag();
   }
 
   private findID3v2(): void {
@@ -360,9 +364,9 @@ export class MpegFile extends File {
     if (!footer) return;
 
     // The tag data starts tagSize bytes before the footer end
-    this._apeLocation = searchEnd - footer.tagSize;
-    this._apeOriginalSize = footer.tagSize;
-    this._apeTag = ApeTag.readFrom(this._stream, this._apeLocation);
+    this._apeLocation = footerOffset + ApeFooter.SIZE - footer.completeTagSize;
+    this._apeOriginalSize = footer.completeTagSize;
+    this._apeTag = ApeTag.readFrom(this._stream, footerOffset);
   }
 
   private refreshCombinedTag(): void {

@@ -1,16 +1,16 @@
 # taglib-ts
 
-[![TypeScript Build & Test](https://github.com/DanTheMan827/taglib/actions/workflows/ts-build.yml/badge.svg)](https://github.com/DanTheMan827/taglib/actions/workflows/ts-build.yml)
+[![TypeScript Build & Test](https://github.com/DanTheMan827/taglib/actions/workflows/build.yml/badge.svg)](https://github.com/DanTheMan827/taglib/actions/workflows/build.yml)
 
-Native **TypeScript** port of [TagLib](https://taglib.org/) for browsers, Node.js, and any JavaScript runtime. Reads and writes audio metadata (ID3v1, ID3v2, APE, Vorbis comments, MP4 atoms, RIFF Info, and more) for 15 container formats — no WASM, no native bindings.
+Native **TypeScript** port of [TagLib](https://taglib.org/) for browsers, Node.js, and any JavaScript runtime. Reads and writes audio metadata (ID3v1, ID3v2, APE, Vorbis comments, MP4 atoms, RIFF Info, ASF, Matroska tags, and more) for 21 container formats — no WASM, no native bindings.
 
 ## Features
 
-- 🎵 **15 audio formats**: MP3, FLAC, MP4/AAC, OGG (Vorbis / Opus / Speex / FLAC), WAV, AIFF, MPC, WavPack, Monkey's Audio, TrueAudio, DSF, DSDIFF
-- 🏷️ **All major tag formats**: ID3v1, ID3v2 (v2.2 / v2.3 / v2.4), APEv2, Vorbis Comment, FLAC Picture, RIFF Info, DSDIFF DIIN
+- 🎵 **21 audio formats**: MP3, FLAC, MP4/AAC, OGG (Vorbis / Opus / Speex / FLAC), WAV, AIFF, MPC, WavPack, Monkey's Audio, TrueAudio, DSF, DSDIFF, ASF/WMA, Matroska/WebM, MOD, S3M, XM, IT, Shorten
+- 🏷️ **All major tag formats**: ID3v1, ID3v2 (v2.2 / v2.3 / v2.4), APEv2, Vorbis Comment, FLAC Picture, RIFF Info, DSDIFF DIIN, ASF, Matroska
 - 📦 **Code splitting**: format readers are lazy-loaded via dynamic `import()` — only the formats you use land in your bundle
 - 🌐 **Browser-first**: accepts `File`, `Blob`, and `Uint8Array` inputs
-- ✅ **305 tests** ported from the C++ CppUnit suite
+- ✅ **360+ tests** ported from the C++ CppUnit suite
 
 ---
 

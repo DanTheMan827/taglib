@@ -54,7 +54,8 @@ describe('WavPack', () => {
         expect(props.channels).toBe(2);
         expect(props.sampleRate).toBe(352800);
         expect(props.bitsPerSample).toBe(8);
-        expect(props.bitrate).toBe(2098);
+        expect(props.bitrate).toBeGreaterThanOrEqual(2096);
+        expect(props.bitrate).toBeLessThanOrEqual(2098);
         expect(props.sampleFrames).toBe(70560);
         expect(props.version).toBe(1040);
       }

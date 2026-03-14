@@ -80,6 +80,11 @@ export class AiffFile extends RiffFile {
       }
     }
 
+    // Ensure default tag exists
+    if (!this._id3v2Tag) {
+      this._id3v2Tag = new Id3v2Tag();
+    }
+
     if (readProperties && commData) {
       this._properties = new AiffProperties(commData, streamLength, readStyle);
     }
