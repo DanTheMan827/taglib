@@ -1,6 +1,10 @@
 /**
  * Cross-validation test: tags files with taglib-ts, then validates with C TagLib.
  * This ensures taglib-ts output is compatible with the reference implementation.
+ *
+ * These tests require the C TagLib validator and tagger binaries to be built
+ * and placed at /tmp/taglib_validate and /tmp/tag_with_c_full respectively.
+ * When those binaries are not available (e.g. in CI), the tests are skipped.
  */
 import { describe, it, expect } from "vitest";
 import { FileRef } from "../src/fileRef.js";
@@ -9,11 +13,15 @@ import { ByteVectorStream } from "../src/toolkit/byteVectorStream.js";
 import { Variant, type VariantMap } from "../src/toolkit/variant.js";
 import { readTestData } from "./testHelper.js";
 import { execSync } from "child_process";
-import { writeFileSync, unlinkSync, mkdtempSync } from "fs";
+import { writeFileSync, unlinkSync, mkdtempSync, existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
 const VALIDATOR = "/tmp/taglib_validate";
+const HAS_C_TAGLIB = existsSync(VALIDATOR);
+
+// Use describe.skipIf to skip all tests when C TagLib binaries aren't available
+const describeIfCTagLib = HAS_C_TAGLIB ? describe : describe.skip;
 
 interface ValidatorResult {
   valid: boolean;
@@ -110,7 +118,7 @@ function makePicture(opts: {
 // Tag validation tests
 // ---------------------------------------------------------------------------
 
-describe("C TagLib validation — basic tags", () => {
+describeIfCTagLib("C TagLib validation — basic tags", () => {
   it("FLAC: tags readable by C TagLib", async () => {
     const result = await tagAndValidate("silence-44-s.flac", ".flac");
     expect(result.valid).toBe(true);
@@ -170,7 +178,7 @@ describe("C TagLib validation — basic tags", () => {
   });
 });
 
-describe("C TagLib validation — audio properties preserved", () => {
+describeIfCTagLib("C TagLib validation — audio properties preserved", () => {
   it("FLAC: audio properties intact after tagging", async () => {
     const result = await tagAndValidate("silence-44-s.flac", ".flac");
     expect(result.sampleRate).toBe(44100);
@@ -190,7 +198,7 @@ describe("C TagLib validation — audio properties preserved", () => {
   });
 });
 
-describe("C TagLib validation — pictures", () => {
+describeIfCTagLib("C TagLib validation — pictures", () => {
   it("FLAC: picture readable by C TagLib", async () => {
     const pic = makePicture({ mimeType: "image/jpeg", size: 512 });
     const result = await tagAndValidate("silence-44-s.flac", ".flac", { pictures: [pic] });
@@ -264,7 +272,7 @@ function parseOggPages(data: Uint8Array): OggPageInfo[] {
   return pages;
 }
 
-describe("C TagLib validation — OGG page structure", () => {
+describe("OGG page structure validation", () => {
   it("OGG Vorbis: audio pages preserve granule positions", async () => {
     const original = readTestData("empty.ogg");
     const origPages = parseOggPages(original);
@@ -351,7 +359,7 @@ function tagWithCTagLib(testFile: string, ext: string, format: string): Uint8Arr
   return new Uint8Array(result);
 }
 
-describe("C TagLib → taglib-ts: read tags written by C TagLib", () => {
+describeIfCTagLib("C TagLib → taglib-ts: read tags written by C TagLib", () => {
   it("MP3: taglib-ts reads C TagLib output", async () => {
     const data = tagWithCTagLib("xing.mp3", ".mp3", "mp3");
     const ref = await FileRef.fromByteArray(data, "test.mp3");
@@ -423,7 +431,7 @@ describe("C TagLib → taglib-ts: read tags written by C TagLib", () => {
 // Round-trip: taglib-ts → C TagLib → taglib-ts
 // ---------------------------------------------------------------------------
 
-describe("Round-trip: taglib-ts → C TagLib → taglib-ts", () => {
+describeIfCTagLib("Round-trip: taglib-ts → C TagLib → taglib-ts", () => {
   it("MP3: tag with TS, validate with C, re-read with TS", async () => {
     // Tag with taglib-ts
     const data = readTestData("xing.mp3");
