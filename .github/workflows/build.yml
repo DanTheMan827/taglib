@@ -8,8 +8,53 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-c-validators:
+    runs-on: ubuntu-latest
+    name: Build C TagLib validators
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build zlib1g-dev
+
+      - name: Configure TagLib (from submodule)
+        run: |
+          cmake -B taglib/build -S taglib \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=$HOME/.local \
+            -DBUILD_TESTING=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DWITH_ZLIB=ON
+
+      - name: Build & install TagLib
+        run: cmake --build taglib/build -j$(nproc) && cmake --install taglib/build
+
+      - name: Build C validators
+        run: |
+          PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig \
+          cmake -B validator/build -S validator \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH=$HOME/.local
+          cmake --build validator/build -j$(nproc)
+
+      - name: Upload validator binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-validators
+          path: |
+            validator/build/taglib_validate
+            validator/build/tag_with_c_full
+          retention-days: 1
+
   build-and-test:
     runs-on: ubuntu-latest
+    needs: build-c-validators
     strategy:
       matrix:
         node-version: [20, 22]
@@ -24,6 +69,15 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
+      - name: Download C validator binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: c-validators
+          path: validator/build
+
+      - name: Make validators executable
+        run: chmod +x validator/build/taglib_validate validator/build/tag_with_c_full
+
       - name: Install dependencies
         run: npm ci
 
@@ -35,3 +89,7 @@ jobs:
 
       - name: Test
         run: npm test
+        env:
+          TAGLIB_VALIDATE: ${{ github.workspace }}/validator/build/taglib_validate
+          TAGLIB_TAGGER: ${{ github.workspace }}/validator/build/tag_with_c_full
+

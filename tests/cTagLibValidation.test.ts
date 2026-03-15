@@ -2,9 +2,12 @@
  * Cross-validation test: tags files with taglib-ts, then validates with C TagLib.
  * This ensures taglib-ts output is compatible with the reference implementation.
  *
- * These tests require the C TagLib validator and tagger binaries to be built
- * and placed at /tmp/taglib_validate and /tmp/tag_with_c_full respectively.
- * When those binaries are not available (e.g. in CI), the tests are skipped.
+ * These tests require the C TagLib validator and tagger binaries. The binary
+ * paths are resolved from environment variables (TAGLIB_VALIDATE and
+ * TAGLIB_TAGGER), falling back to /tmp/taglib_validate and /tmp/tag_with_c_full.
+ *
+ * In CI the binaries are built from the taglib submodule (validator/) and the
+ * paths are exported as environment variables by the build workflow.
  */
 import { describe, it, expect } from "vitest";
 import { FileRef } from "../src/fileRef.js";
@@ -17,8 +20,9 @@ import { writeFileSync, unlinkSync, mkdtempSync, existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
-const VALIDATOR = "/tmp/taglib_validate";
+const VALIDATOR = process.env.TAGLIB_VALIDATE ?? "/tmp/taglib_validate";
 const HAS_C_TAGLIB = existsSync(VALIDATOR);
+// ^^ Falls back to /tmp/taglib_validate for local development convenience.
 
 // Use describe.skipIf to skip all tests when C TagLib binaries aren't available
 const describeIfCTagLib = HAS_C_TAGLIB ? describe : describe.skip;
@@ -346,7 +350,8 @@ describe("OGG page structure validation", () => {
 // Bidirectional validation: C TagLib → taglib-ts
 // ---------------------------------------------------------------------------
 
-const C_TAGGER = "/tmp/tag_with_c_full";
+const C_TAGGER = process.env.TAGLIB_TAGGER ?? "/tmp/tag_with_c_full";
+// ^^ Falls back to /tmp/tag_with_c_full for local development convenience.
 
 function tagWithCTagLib(testFile: string, ext: string, format: string): Uint8Array {
   const dir = mkdtempSync(join(tmpdir(), "taglib-bidir-"));
