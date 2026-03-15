@@ -220,7 +220,7 @@ describe("ID3v2", () => {
       const f = PopularimeterFrame.fromData(raw, header, 4);
       expect(f.email).toBe("email@example.com");
       expect(f.rating).toBe(2);
-      expect(f.counter).toBe(3);
+      expect(f.counter).toBe(3n);
     });
 
     it("should parse POPM without counter", () => {
@@ -231,14 +231,14 @@ describe("ID3v2", () => {
       const f = PopularimeterFrame.fromData(raw, header, 4);
       expect(f.email).toBe("email@example.com");
       expect(f.rating).toBe(2);
-      expect(f.counter).toBe(0);
+      expect(f.counter).toBe(0n);
     });
 
     it("should render POPM frame", () => {
       const f = new PopularimeterFrame();
       f.email = "email@example.com";
       f.rating = 2;
-      f.counter = 3;
+      f.counter = 3n;
 
       const rendered = f.render(4);
 
@@ -1124,14 +1124,14 @@ describe("ID3v2", () => {
       const f = new PopularimeterFrame();
       f.email = "test@example.com";
       f.rating = 128;
-      f.counter = 42;
+      f.counter = 42n;
 
       const rendered = f.render(4);
       const header = parseHeader(rendered);
       const f2 = PopularimeterFrame.fromData(rendered, header, 4);
       expect(f2.email).toBe("test@example.com");
       expect(f2.rating).toBe(128);
-      expect(f2.counter).toBe(42);
+      expect(f2.counter).toBe(42n);
     });
 
     it("should round-trip UFID frame", () => {

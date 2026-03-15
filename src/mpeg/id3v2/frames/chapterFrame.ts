@@ -140,6 +140,7 @@ export class ChapterFrame extends Id3v2Frame {
     version: number,
     frameParser?: (data: ByteVector, version: number) => Id3v2Frame | undefined,
   ): void {
+    this._embeddedFrames = [];
     // Element ID: null-terminated
     let nullIdx = -1;
     for (let i = 0; i < data.length; i++) {

@@ -199,9 +199,9 @@ export class DsdiffFile extends File {
 
     // Read FRM8 container header
     this.seek(0);
-    const type = this.readBlock(4); // "FRM8"
+    this.readBlock(4); // "FRM8"
     this._size = Number(this.readBlock(8).toLongLong(bigEndian));
-    const format = this.readBlock(4); // "DSD "
+    this.readBlock(4); // "DSD "
 
     // Walk all root-level chunks
     while (this.tell() + 12 <= this.fileLength) {

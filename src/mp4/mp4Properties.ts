@@ -18,12 +18,15 @@ export enum Mp4Codec {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Sum total length of all "mdat" atoms in the tree. */
+/** Sum total payload length (excluding atom headers) of all "mdat" atoms in the tree. */
 function calculateMdatLength(atoms: Mp4Atom[]): number {
   let total = 0;
   for (const atom of atoms) {
     if (atom.length === 0) return 0;
-    if (atom.name === "mdat") total += atom.length;
+    if (atom.name === "mdat") {
+      const payload = atom.length - atom.headerSize;
+      if (payload > 0) total += payload;
+    }
     total += calculateMdatLength(atom.children);
   }
   return total;
@@ -88,7 +91,7 @@ export class Mp4Properties extends AudioProperties {
     const trakList = moov.findAll("trak");
     for (const track of trakList) {
       const hdlr = track.find("mdia", "hdlr");
-      if (!hdlr) return;
+      if (!hdlr) continue;
       trak = track;
       stream.seek(hdlr.offset);
       data = stream.readBlock(hdlr.length);

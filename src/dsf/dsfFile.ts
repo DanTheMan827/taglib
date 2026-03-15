@@ -33,7 +33,7 @@ export class DsfFile extends File {
   ) {
     super(stream);
     if (this.isOpen) {
-      this.read(readStyle);
+      this.read(readProperties, readStyle);
     }
   }
 
@@ -130,7 +130,7 @@ export class DsfFile extends File {
   // Private – reading
   // ---------------------------------------------------------------------------
 
-  private read(readStyle: ReadStyle): void {
+  private read(readProperties: boolean, readStyle: ReadStyle): void {
     // DSD chunk
     this.seek(0);
     const chunkName = this.readBlock(4);
@@ -180,10 +180,11 @@ export class DsfFile extends File {
     // But fmtHeaderSize=52 and the properties::read expects data starting at formatVersion
     // which is right after "fmt " + 8-byte size. So the C++ reads 52 bytes as fmt payload.
     // However properties::read() only uses offsets 0-35 (36 bytes) from that data.
-    this._properties = new DsfProperties(
-      this.readBlock(fmtHeaderSize),
-      readStyle,
-    );
+    if (readProperties) {
+      this._properties = new DsfProperties(this.readBlock(fmtHeaderSize), readStyle);
+    } else {
+      this._properties = null;
+    }
 
     // ID3v2 tag
     if (this._metadataOffset === 0) {

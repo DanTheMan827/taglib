@@ -44,7 +44,7 @@ export class FileRef {
   save(): boolean { return this._file?.save() ?? false; }
 
   properties(): PropertyMap { return this._file?.properties() ?? new PropertyMap(); }
-  setProperties(props: PropertyMap): PropertyMap { return this._file?.setProperties(props) ?? new PropertyMap(); }
+  setProperties(props: PropertyMap): PropertyMap { return this._file?.setProperties(props) ?? props; }
   removeUnsupportedProperties(props: string[]): void { this._file?.removeUnsupportedProperties(props); }
   complexPropertyKeys(): string[] { return this._file?.complexPropertyKeys() ?? []; }
   complexProperties(key: string): VariantMap[] { return this._file?.complexProperties(key) ?? []; }

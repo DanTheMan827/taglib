@@ -101,7 +101,7 @@ export class ID3v1Tag extends Tag {
     return this._track;
   }
   set track(value: number) {
-    this._track = value < 256 ? value : 0;
+    this._track = Math.max(0, Math.min(255, value | 0));
   }
 
   // ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ export class ID3v1Tag extends Tag {
     return this._genre;
   }
   set genreNumber(value: number) {
-    this._genre = value < 256 ? value : 255;
+    this._genre = Math.max(0, Math.min(255, value | 0));
   }
 
   /** Returns the "TAG" file identifier as a ByteVector. */

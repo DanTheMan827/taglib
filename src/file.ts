@@ -239,7 +239,7 @@ export abstract class File {
 
       // If `before` appears in this chunk, limit search
       if (before && before.length > 0) {
-        const beforeIdx = combined.find(before);
+        const beforeIdx = combined.rfind(before);
         if (beforeIdx >= 0) {
           // Search only after the `before` pattern
           const afterBefore = combined.mid(beforeIdx + before.length);

@@ -65,7 +65,7 @@ export class RelativeVolumeFrame extends Id3v2Frame {
     index: number,
     channel: ChannelType = ChannelType.MasterVolume,
   ): void {
-    this._getOrCreate(channel).volumeAdjustment = index | 0;
+    this._getOrCreate(channel).volumeAdjustment = Math.max(-32768, Math.min(32767, index | 0));
   }
 
   /** Get volume adjustment as a floating point dB value. */

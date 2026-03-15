@@ -25,6 +25,7 @@ function readString(data: ByteVector, maxLen: number): string {
 export class ModFile extends File {
   private _tag: ModTag;
   private _properties: ModProperties | null = null;
+  private _instrumentCount: number = 31;
 
   constructor(
     stream: IOStream,
@@ -72,7 +73,7 @@ export class ModFile extends File {
 
     // Write instrument names from comment
     const lines = this._tag.comment.split("\n");
-    const instrumentCount = this._properties?.instrumentCount ?? 31;
+    const instrumentCount = this._instrumentCount;
 
     for (let i = 0; i < instrumentCount; i++) {
       const name = i < lines.length ? lines[i] : "";
@@ -142,6 +143,9 @@ export class ModFile extends File {
     this.seek(0);
     const titleData = this.readBlock(20);
     this._tag.title = readString(titleData, 20);
+
+    // Store instrument count so save() works regardless of readProperties
+    this._instrumentCount = instruments;
 
     // Read instrument names
     let pos = 20;

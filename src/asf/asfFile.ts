@@ -318,7 +318,7 @@ export class AsfFile extends File {
 
   constructor(
     stream: IOStream,
-    readProperties = true,
+    _readProperties = true,
     _readStyle: ReadStyle = ReadStyle.Average,
   ) {
     super(stream);

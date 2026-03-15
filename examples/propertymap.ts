@@ -12,7 +12,6 @@
 import { readFileSync, writeFileSync } from "fs";
 import { FileRef } from "../src/index.js";
 import { ByteVectorStream } from "../src/toolkit/byteVectorStream.js";
-import { ByteVector } from "../src/byteVector.js";
 import { PropertyMap } from "../src/toolkit/propertyMap.js";
 
 const filePath = process.argv[2];

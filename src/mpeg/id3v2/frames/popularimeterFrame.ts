@@ -13,7 +13,7 @@ import {
 export class PopularimeterFrame extends Id3v2Frame {
   private _email: string = "";
   private _rating: number = 0;
-  private _counter: number = 0;
+  private _counter: bigint = 0n;
 
   constructor() {
     const header = new Id3v2FrameHeader(
@@ -41,12 +41,12 @@ export class PopularimeterFrame extends Id3v2Frame {
     this._rating = Math.max(0, Math.min(255, value | 0));
   }
 
-  get counter(): number {
+  get counter(): bigint {
     return this._counter;
   }
 
-  set counter(value: number) {
-    this._counter = Math.max(0, value | 0);
+  set counter(value: bigint) {
+    this._counter = value < 0n ? 0n : value;
   }
 
   toString(): string {
@@ -85,12 +85,13 @@ export class PopularimeterFrame extends Id3v2Frame {
     }
 
     if (offset < data.length) {
-      // Counter can be 1–8 bytes, big-endian
+      // Counter can be 1–8 bytes, big-endian unsigned integer
       const counterData = data.mid(offset);
-      this._counter = 0;
+      let counter = 0n;
       for (let i = 0; i < counterData.length && i < 8; i++) {
-        this._counter = this._counter * 256 + counterData.get(i);
+        counter = counter * 256n + BigInt(counterData.get(i));
       }
+      this._counter = counter;
     }
   }
 
@@ -100,11 +101,19 @@ export class PopularimeterFrame extends Id3v2Frame {
     v.append(0); // null terminator
     v.append(this._rating & 0xff);
 
-    // Render counter as big-endian, minimum 4 bytes
-    if (this._counter === 0) {
-      v.append(ByteVector.fromUInt(0));
+    // Render counter as big-endian variable-width, minimum 4 bytes
+    if (this._counter <= 0xffffffffn) {
+      v.append(ByteVector.fromUInt(Number(this._counter)));
     } else {
-      v.append(ByteVector.fromUInt(this._counter));
+      // 5–8 bytes for large counters
+      const bytes: number[] = [];
+      let c = this._counter;
+      while (c > 0n) {
+        bytes.unshift(Number(c & 0xffn));
+        c >>= 8n;
+      }
+      while (bytes.length < 4) bytes.unshift(0);
+      for (const b of bytes) v.append(b);
     }
 
     return v;

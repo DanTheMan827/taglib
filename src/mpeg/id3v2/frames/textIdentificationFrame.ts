@@ -90,22 +90,31 @@ export class TextIdentificationFrame extends Id3v2Frame {
     this._rawVersion = version;
   }
 
-  protected renderFields(_version: number): ByteVector {
+  protected renderFields(version: number): ByteVector {
     this._parseRawData();
     const v = new ByteVector();
     v.append(this._encoding);
-    const nt = this._encoding === StringType.UTF16 ||
-      this._encoding === StringType.UTF16BE ||
-      this._encoding === StringType.UTF16LE
-      ? ByteVector.fromSize(2, 0)
-      : ByteVector.fromSize(1, 0);
 
-    for (let i = 0; i < this._fieldList.length; i++) {
-      if (i > 0) {
-        v.append(nt);
+    if (version >= 4) {
+      // ID3v2.4: NUL-separated multiple values
+      const nt = this._encoding === StringType.UTF16 ||
+        this._encoding === StringType.UTF16BE ||
+        this._encoding === StringType.UTF16LE
+        ? ByteVector.fromSize(2, 0)
+        : ByteVector.fromSize(1, 0);
+
+      for (let i = 0; i < this._fieldList.length; i++) {
+        if (i > 0) {
+          v.append(nt);
+        }
+        v.append(ByteVector.fromString(this._fieldList[i], this._encoding));
       }
-      v.append(ByteVector.fromString(this._fieldList[i], this._encoding));
+    } else {
+      // ID3v2.3 and earlier: '/' separated multiple values (rendered as Latin1 separator)
+      const joined = this._fieldList.join("/");
+      v.append(ByteVector.fromString(joined, this._encoding));
     }
+
     return v;
   }
 

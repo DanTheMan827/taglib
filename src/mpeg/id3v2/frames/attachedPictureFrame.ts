@@ -150,11 +150,22 @@ export class AttachedPictureFrame extends Id3v2Frame {
     }
   }
 
-  protected renderFields(_version: number): ByteVector {
+  protected renderFields(version: number): ByteVector {
     const v = new ByteVector();
     v.append(this._encoding);
-    v.append(ByteVector.fromString(this._mimeType, StringType.Latin1));
-    v.append(0); // null terminator for MIME
+
+    if (version < 3) {
+      // ID3v2.2 PIC: 3-byte image format string (no null terminator)
+      const fmt = this._mimeType.length >= 3
+        ? this._mimeType.substring(0, 3)
+        : this._mimeType.padEnd(3, "\0");
+      v.append(ByteVector.fromString(fmt, StringType.Latin1));
+    } else {
+      // ID3v2.3+ APIC: null-terminated Latin1 MIME type
+      v.append(ByteVector.fromString(this._mimeType, StringType.Latin1));
+      v.append(0); // null terminator for MIME
+    }
+
     v.append(this._pictureType);
     v.append(ByteVector.fromString(this._description, this._encoding));
     // Null terminator for description
