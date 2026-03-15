@@ -1,5 +1,5 @@
 {
-  "name": "taglib-ts",
+  "name": "@dantheman827/taglib-ts",
   "version": "0.1.0",
   "description": "A TypeScript audio metadata library for browsers, supporting MP3, FLAC, MP4, OGG, WAV, AIFF and more",
   "main": "dist/index.js",
@@ -39,7 +39,7 @@
     "wav",
     "aiff"
   ],
-  "author": "",
+  "author": "DanTheMan827",
   "license": "LGPL-2.1-or-later",
   "bugs": {
     "url": "https://github.com/DanTheMan827/taglib-ts/issues"
