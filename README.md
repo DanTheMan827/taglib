@@ -23,7 +23,7 @@ npm install @dantheman827/taglib-ts
 ### Simple API — read tags
 
 ```ts
-import { readTags } from '@dantheman827/taglib-ts';
+import { readTags } from '@dantheman827/taglib-ts/simpleApi.js';
 
 // Browser File picker
 const [file] = await showOpenFilePicker({ types: [{ accept: { 'audio/*': [] } }] });
@@ -38,7 +38,7 @@ console.log(tags.audioProperties?.lengthInSeconds); // 354
 ### Simple API — write tags
 
 ```ts
-import { writeTags } from '@dantheman827/taglib-ts';
+import { writeTags } from '@dantheman827/taglib-ts/simpleApi.js';
 
 const modified = await writeTags(file, {
   title:  'My Track',
@@ -60,7 +60,8 @@ Use `FileRef` when you need direct access to tags, audio properties, or
 format-specific metadata.
 
 ```ts
-import { FileRef, ReadStyle } from '@dantheman827/taglib-ts';
+import { FileRef } from '@dantheman827/taglib-ts/fileRef.js';
+import { ReadStyle } from "@dantheman827/taglib-ts/toolkit/types.js";
 
 const ref = await FileRef.fromBlob(blob, 'track.mp3');
 
@@ -261,7 +262,7 @@ for (const [key, values] of map.entries()) {
 ### Format Detection
 
 ```ts
-import { detectByExtension, detectByContent } from '@dantheman827/taglib-ts';
+import { detectByExtension, detectByContent } from '@dantheman827/taglib-ts/formatDetection.js';
 
 const format = detectByExtension('track.mp3');     // 'mpeg'
 const format2 = detectByContent(stream);            // null | format string
@@ -298,7 +299,8 @@ system access — audio data is passed in as a `Uint8Array` and the (possibly
 modified) bytes are returned as a `Uint8Array`.
 
 ```ts
-import { ByteVectorStream, ByteVector } from '@dantheman827/taglib-ts';
+import { ByteVectorStream } from "@dantheman827/taglib-ts/toolkit/byteVectorStream.js";
+import { ByteVector } from '@dantheman827/taglib-ts/byteVector.js';
 
 const bv     = ByteVector.fromByteArray(myUint8Array);
 const stream = new ByteVectorStream(bv);
@@ -312,7 +314,7 @@ const ref    = await FileRef.open(stream);
 Control how much of the file is scanned for audio properties:
 
 ```ts
-import { ReadStyle } from '@dantheman827/taglib-ts';
+import { ReadStyle } from '@dantheman827/taglib-ts/toolkit/types.js';
 
 ReadStyle.Fast     // Minimal scan — may be less accurate
 ReadStyle.Average  // Default — good balance of speed and accuracy
