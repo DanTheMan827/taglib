@@ -454,15 +454,10 @@ describeIfC("Byte equality: taglib-ts output matches C TagLib output", () => {
 // ---------------------------------------------------------------------------
 
 describeIfC("Round-trip: taglib-ts → C TagLib validate → taglib-ts re-read", () => {
-  const roundTripFormats: string[] = [
-    "MP3", "FLAC", "OGG Vorbis", "M4A", "WAV", "MPC", "WavPack",
-    "TrueAudio", "ASF/WMA",
-  ];
+  // All formats that taglib-ts can write and that the C validator can read
+  const roundTripFormats = FORMATS.filter(f => !f.tsReadOnly && !f.skipAudioProps);
 
-  for (const label of roundTripFormats) {
-    const cfg = FORMATS.find(f => f.label === label);
-    if (!cfg) continue;
-
+  for (const cfg of roundTripFormats) {
     it(`${cfg.label}: TS → C validate → TS re-read`, async () => {
       const tsBytes = await tagWithTS(cfg.testFile, cfg.ext,
         { picture: cfg.hasPicture });

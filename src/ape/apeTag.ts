@@ -293,8 +293,7 @@ export class ApeTag extends Tag {
     return parseInt(s, 10) || 0;
   }
   set year(v: number) {
-    this.setTextValue("YEAR", v > 0 ? String(v) : "");
-    this._items = this._items.filter(i => i.key.toUpperCase() !== "DATE");
+    this.setTextValueExclusive("YEAR", v > 0 ? String(v) : "", "DATE");
   }
 
   get track(): number {
@@ -302,8 +301,7 @@ export class ApeTag extends Tag {
     return parseInt(s, 10) || 0;
   }
   set track(v: number) {
-    this.setTextValue("TRACK", v > 0 ? String(v) : "");
-    this._items = this._items.filter(i => i.key.toUpperCase() !== "TRACKNUMBER");
+    this.setTextValueExclusive("TRACK", v > 0 ? String(v) : "", "TRACKNUMBER");
   }
 
   /** An APE tag is empty when it contains no items. */
@@ -482,5 +480,21 @@ export class ApeTag extends Tag {
     it.values = [value];
     it.type = ApeItemType.Text;
     this.setItem(it);
+  }
+
+  /**
+   * Set a text value under `key`, simultaneously removing any legacy aliases
+   * for the same field (e.g. replacing "DATE" when writing "YEAR").
+   */
+  private setTextValueExclusive(
+    key: string,
+    value: string,
+    ...legacyKeys: string[]
+  ): void {
+    this.setTextValue(key, value);
+    const upperLegacy = legacyKeys.map(k => k.toUpperCase());
+    this._items = this._items.filter(
+      i => !upperLegacy.includes(i.key.toUpperCase()),
+    );
   }
 }
