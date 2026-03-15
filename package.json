@@ -18,7 +18,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DanTheMan827/taglib.git"
+    "url": "git+https://github.com/DanTheMan827/taglib-ts.git"
   },
   "keywords": [
     "audio",
@@ -35,9 +35,9 @@
   "author": "",
   "license": "LGPL-2.1-or-later",
   "bugs": {
-    "url": "https://github.com/DanTheMan827/taglib/issues"
+    "url": "https://github.com/DanTheMan827/taglib-ts/issues"
   },
-  "homepage": "https://github.com/DanTheMan827/taglib#readme",
+  "homepage": "https://github.com/DanTheMan827/taglib-ts#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@stylistic/eslint-plugin": "^5.10.0",
