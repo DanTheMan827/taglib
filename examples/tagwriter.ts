@@ -5,7 +5,7 @@
  *   npx tsx examples/tagwriter.ts path/to/audio.mp3
  */
 import { readFileSync, writeFileSync } from "fs";
-import { writeTags } from "../src/simpleApi.js";
+import { writeTags } from "@dantheman827/taglib-ts/simpleApi.js";
 
 const filePath = process.argv[2];
 if (!filePath) {
@@ -23,7 +23,7 @@ const modified = await writeTags({ data, filename }, {
   year: 2025,
   track: 1,
   genre: "Rock",
-  comment: "Written by taglib-ts",
+  comment: "Written by @dantheman827/taglib-ts",
 });
 
 if (modified) {

@@ -17,13 +17,13 @@ Native **TypeScript** port of [TagLib](https://taglib.org/) for browsers, Node.j
 ## Quick Start
 
 ```bash
-npm install taglib-ts   # (package name is illustrative; use the actual published name)
+npm install @dantheman827/taglib-ts 
 ```
 
 ### Simple API — read tags
 
 ```ts
-import { readTags } from 'taglib-ts';
+import { readTags } from '@dantheman827/taglib-ts';
 
 // Browser File picker
 const [file] = await showOpenFilePicker({ types: [{ accept: { 'audio/*': [] } }] });
@@ -38,7 +38,7 @@ console.log(tags.audioProperties?.lengthInSeconds); // 354
 ### Simple API — write tags
 
 ```ts
-import { writeTags } from 'taglib-ts';
+import { writeTags } from '@dantheman827/taglib-ts';
 
 const modified = await writeTags(file, {
   title:  'My Track',
@@ -60,7 +60,7 @@ Use `FileRef` when you need direct access to tags, audio properties, or
 format-specific metadata.
 
 ```ts
-import { FileRef, ReadStyle } from 'taglib-ts';
+import { FileRef, ReadStyle } from '@dantheman827/taglib-ts';
 
 const ref = await FileRef.fromBlob(blob, 'track.mp3');
 
@@ -261,7 +261,7 @@ for (const [key, values] of map.entries()) {
 ### Format Detection
 
 ```ts
-import { detectByExtension, detectByContent } from 'taglib-ts';
+import { detectByExtension, detectByContent } from '@dantheman827/taglib-ts';
 
 const format = detectByExtension('track.mp3');     // 'mpeg'
 const format2 = detectByContent(stream);            // null | format string
@@ -298,7 +298,7 @@ system access — audio data is passed in as a `Uint8Array` and the (possibly
 modified) bytes are returned as a `Uint8Array`.
 
 ```ts
-import { ByteVectorStream, ByteVector } from 'taglib-ts';
+import { ByteVectorStream, ByteVector } from '@dantheman827/taglib-ts';
 
 const bv     = ByteVector.fromByteArray(myUint8Array);
 const stream = new ByteVectorStream(bv);
@@ -312,7 +312,7 @@ const ref    = await FileRef.open(stream);
 Control how much of the file is scanned for audio properties:
 
 ```ts
-import { ReadStyle } from 'taglib-ts';
+import { ReadStyle } from '@dantheman827/taglib-ts';
 
 ReadStyle.Fast     // Minimal scan — may be less accurate
 ReadStyle.Average  // Default — good balance of speed and accuracy
