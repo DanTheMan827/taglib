@@ -20,6 +20,8 @@ export class OggOpusFile extends OggFile {
   private _tag: XiphComment;
   private _properties: OpusProperties | null = null;
 
+  protected override get numHeaderPackets(): number { return 2; }
+
   constructor(
     stream: IOStream,
     readProperties: boolean = true,

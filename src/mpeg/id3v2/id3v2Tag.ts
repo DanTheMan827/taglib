@@ -151,6 +151,15 @@ export class Id3v2Tag extends Tag {
   }
 
   /**
+   * An ID3v2 tag is empty only when it contains no frames at all.
+   * This ensures tags that contain only non-text frames (e.g. APIC pictures)
+   * are not incorrectly stripped during save.
+   */
+  override get isEmpty(): boolean {
+    return this._frames.length === 0;
+  }
+
+  /**
    * Read an ID3v2 tag from a stream at the given offset.
    */
   static readFrom(

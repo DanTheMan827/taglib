@@ -14,6 +14,8 @@ export class OggSpeexFile extends OggFile {
   private _tag: XiphComment;
   private _properties: SpeexProperties | null = null;
 
+  protected override get numHeaderPackets(): number { return 2; }
+
   constructor(
     stream: IOStream,
     readProperties: boolean = true,

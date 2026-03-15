@@ -284,6 +284,11 @@ export class ApeTag extends Tag {
     this.setTextValue("TRACKNUMBER", v > 0 ? String(v) : "");
   }
 
+  /** An APE tag is empty when it contains no items. */
+  override get isEmpty(): boolean {
+    return this._items.length === 0;
+  }
+
   // ---------------------------------------------------------------------------
   // Read from stream
   // ---------------------------------------------------------------------------

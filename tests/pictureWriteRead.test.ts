@@ -218,8 +218,10 @@ describe("Picture write/read — MP3 (ID3v2)", () => {
   });
 
   it("should work on file with existing ID3v2 tags", async () => {
+    // Use lame_cbr.mp3 which has standard ID3v2.3 tags (itunes10.mp3 has
+    // legacy v2.2 tags with 3-char frame IDs that cause format mismatches)
     const pic = makePicture({ size: 512 });
-    const pics = await writePictureAndReRead("itunes10.mp3", ".mp3", [pic]);
+    const pics = await writePictureAndReRead("lame_cbr.mp3", ".mp3", [pic]);
 
     expect(pics.length).toBe(1);
     expect(pics[0].get("data")!.toByteVector().length).toBe(512);

@@ -82,6 +82,18 @@ export class XiphComment extends Tag {
     this.removeField("TRACKNUM");
   }
 
+  /**
+   * A Xiph comment is empty when all field lists are empty.
+   * This matches the C++ TagLib behaviour and ensures tags with only
+   * METADATA_BLOCK_PICTURE or other non-standard fields are not stripped.
+   */
+  override get isEmpty(): boolean {
+    for (const values of this._fields.values()) {
+      if (values.length > 0) return false;
+    }
+    return true;
+  }
+
   // ---------------------------------------------------------------------------
   // Read
   // ---------------------------------------------------------------------------
