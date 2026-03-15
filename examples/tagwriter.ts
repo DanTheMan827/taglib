@@ -5,7 +5,7 @@
  *   npx tsx examples/tagwriter.ts path/to/audio.mp3
  */
 import { readFileSync, writeFileSync } from "fs";
-import { writeTags } from "../src/index.js";
+import { writeTags } from "../src/simpleApi.js";
 
 const filePath = process.argv[2];
 if (!filePath) {

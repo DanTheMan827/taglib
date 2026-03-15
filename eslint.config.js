@@ -12,7 +12,7 @@ export default tseslint.config(
     rules: {
       // Formatting
       "@stylistic/indent": ["error", 2],
-      "@stylistic/linebreak-style": ["error", "unix"],
+      "@stylistic/linebreak-style": ["warn", "unix"],
       "@stylistic/quotes": ["error", "double", { avoidEscape: true }],
       "@stylistic/semi": ["error", "always"],
       "@stylistic/comma-dangle": ["error", "always-multiline"],

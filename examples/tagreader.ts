@@ -5,7 +5,7 @@
  *   npx tsx examples/tagreader.ts path/to/audio.mp3
  */
 import { readFileSync } from "fs";
-import { readTags } from "../src/index.js";
+import { readTags } from "../src/simpleApi.js";
 
 const filePath = process.argv[2];
 if (!filePath) {

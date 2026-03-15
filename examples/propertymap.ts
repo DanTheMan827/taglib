@@ -10,7 +10,7 @@
  *   npx tsx examples/propertymap.ts path/to/audio.mp3
  */
 import { readFileSync, writeFileSync } from "fs";
-import { FileRef } from "../src/index.js";
+import { FileRef } from "../src/fileRef.js";
 import { ByteVectorStream } from "../src/toolkit/byteVectorStream.js";
 import { PropertyMap } from "../src/toolkit/propertyMap.js";
 
