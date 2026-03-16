@@ -20,16 +20,20 @@ const textDecoderUtf8 = new TextDecoder("utf-8");
 export class ByteVector {
   private _data: Uint8Array;
 
-  constructor(data?: Uint8Array) {
-    this._data = data ? data : new Uint8Array(0);
+  constructor(data?: Uint8Array, copy: boolean = true) {
+    if (!data) {
+      this._data = new Uint8Array(0);
+    } else {
+      this._data = copy ? new Uint8Array(data) : data;
+    }
   }
 
   // ---------------------------------------------------------------------------
   // Static factory methods
   // ---------------------------------------------------------------------------
 
-  static fromByteArray(data: Uint8Array): ByteVector {
-    return new ByteVector(new Uint8Array(data));
+  static fromByteArray(data: Uint8Array, copy: boolean = true): ByteVector {
+    return new ByteVector(data, copy);
   }
 
   static fromSize(size: number, fill: number = 0): ByteVector {
@@ -37,7 +41,7 @@ export class ByteVector {
     if (fill !== 0) {
       arr.fill(fill & 0xff);
     }
-    return new ByteVector(arr);
+    return new ByteVector(arr, false);
   }
 
   static fromString(s: string, encoding: StringType = StringType.UTF8): ByteVector {
@@ -47,10 +51,10 @@ export class ByteVector {
         for (let i = 0; i < s.length; i++) {
           arr[i] = s.charCodeAt(i) & 0xff;
         }
-        return new ByteVector(arr);
+        return new ByteVector(arr, false);
       }
       case StringType.UTF8:
-        return new ByteVector(textEncoder.encode(s));
+        return new ByteVector(textEncoder.encode(s), false);
       case StringType.UTF16: {
         // UTF-16 with BOM (little-endian by default)
         const arr = new Uint8Array(2 + s.length * 2);
@@ -61,7 +65,7 @@ export class ByteVector {
           arr[2 + i * 2] = code & 0xff;
           arr[2 + i * 2 + 1] = (code >> 8) & 0xff;
         }
-        return new ByteVector(arr);
+        return new ByteVector(arr, false);
       }
       case StringType.UTF16BE: {
         const arr = new Uint8Array(s.length * 2);
@@ -70,7 +74,7 @@ export class ByteVector {
           arr[i * 2] = (code >> 8) & 0xff;
           arr[i * 2 + 1] = code & 0xff;
         }
-        return new ByteVector(arr);
+        return new ByteVector(arr, false);
       }
       case StringType.UTF16LE: {
         const arr = new Uint8Array(s.length * 2);
@@ -79,19 +83,19 @@ export class ByteVector {
           arr[i * 2] = code & 0xff;
           arr[i * 2 + 1] = (code >> 8) & 0xff;
         }
-        return new ByteVector(arr);
+        return new ByteVector(arr, false);
       }
       default:
-        return new ByteVector(textEncoder.encode(s));
+        return new ByteVector(textEncoder.encode(s), false);
     }
   }
 
-  static fromUint8Array(data: Uint8Array): ByteVector {
-    return new ByteVector(new Uint8Array(data));
+  static fromUint8Array(data: Uint8Array, copy: boolean = true): ByteVector {
+    return new ByteVector(data, copy);
   }
 
   static fromByteVector(other: ByteVector): ByteVector {
-    return new ByteVector(new Uint8Array(other._data));
+    return new ByteVector(other._data);
   }
 
   // ---------------------------------------------------------------------------
