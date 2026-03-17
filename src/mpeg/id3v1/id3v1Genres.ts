@@ -1,3 +1,6 @@
+/** @file ID3v1 genre list and look-up utilities. Provides the standard 192-genre table and helper functions. */
+
+/** The canonical list of 192 ID3v1 genre names, indexed by genre number. */
 const genres: readonly string[] = [
   "Blues",
   "Classic Rock",
@@ -193,6 +196,7 @@ const genres: readonly string[] = [
   "Psybient",
 ];
 
+/** Alternative (deprecated) genre name spellings mapped to their canonical genre index. */
 // Alternate names that have been changed over time, mapped to the current index.
 const fixUpGenres: ReadonlyMap<string, number> = new Map([
   ["Jazz+Funk", 29],

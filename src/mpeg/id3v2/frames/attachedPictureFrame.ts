@@ -1,3 +1,5 @@
+/** @file ID3v2 attached picture frame (APIC). Stores embedded album art and other images. */
+
 import { ByteVector, StringType } from "../../../byteVector.js";
 import {
   Id3v2Frame,
@@ -38,12 +40,22 @@ export enum PictureType {
  *            + description(null-terminated in encoding) + pictureData.
  */
 export class AttachedPictureFrame extends Id3v2Frame {
+  /** Text encoding used for the description field. */
   private _encoding: StringType = StringType.UTF8;
+  /** MIME type of the embedded image (e.g. `"image/jpeg"`). */
   private _mimeType: string = "";
+  /** Semantic role of the picture within the tag. */
   private _pictureType: PictureType = PictureType.Other;
+  /** Short description of the picture. */
   private _description: string = "";
+  /** Raw binary image data. */
   private _picture: ByteVector = new ByteVector();
 
+  /**
+   * Creates a new, empty AttachedPictureFrame.
+   * @param encoding - Text encoding to use for the description field.
+   *                   Defaults to `StringType.UTF8`.
+   */
   constructor(encoding: StringType = StringType.UTF8) {
     const header = new Id3v2FrameHeader(
       ByteVector.fromString("APIC", StringType.Latin1),
@@ -54,46 +66,60 @@ export class AttachedPictureFrame extends Id3v2Frame {
 
   // -- Accessors --------------------------------------------------------------
 
+  /** Gets the text encoding used for the description field. */
   get encoding(): StringType {
     return this._encoding;
   }
 
+  /** Sets the text encoding used for the description field. */
   set encoding(e: StringType) {
     this._encoding = e;
   }
 
+  /** Gets the MIME type of the embedded image (e.g. `"image/jpeg"`). */
   get mimeType(): string {
     return this._mimeType;
   }
 
+  /** Sets the MIME type of the embedded image. */
   set mimeType(value: string) {
     this._mimeType = value;
   }
 
+  /** Gets the semantic picture type. */
   get pictureType(): PictureType {
     return this._pictureType;
   }
 
+  /** Sets the semantic picture type. */
   set pictureType(value: PictureType) {
     this._pictureType = value;
   }
 
+  /** Gets the short description of the picture. */
   get description(): string {
     return this._description;
   }
 
+  /** Sets the short description of the picture. */
   set description(value: string) {
     this._description = value;
   }
 
+  /** Gets the raw binary image data. */
   get picture(): ByteVector {
     return this._picture;
   }
 
+  /** Sets the raw binary image data. */
   set picture(data: ByteVector) {
     this._picture = data;
   }
 
+  /**
+   * Returns a human-readable string combining the MIME type and description.
+   * @returns A string in the form `"[mimeType] description"`.
+   */
   toString(): string {
     return `[${this._mimeType}] ${this._description}`;
   }
@@ -114,6 +140,11 @@ export class AttachedPictureFrame extends Id3v2Frame {
 
   // -- Protected --------------------------------------------------------------
 
+  /**
+   * Parses the raw APIC frame field data, populating all picture properties.
+   * @param data - Decoded frame field bytes (after unsynchronisation/decompression).
+   * @param version - ID3v2 version number (2 for v2.2, 3 for v2.3, 4 for v2.4).
+   */
   protected parseFields(data: ByteVector, version: number): void {
     if (data.length < 1) return;
 
@@ -150,6 +181,11 @@ export class AttachedPictureFrame extends Id3v2Frame {
     }
   }
 
+  /**
+   * Renders the frame field data to bytes.
+   * @param version - ID3v2 version number used to determine the on-disk format.
+   * @returns A `ByteVector` containing the encoded APIC field data.
+   */
   protected renderFields(version: number): ByteVector {
     const v = new ByteVector();
     v.append(this._encoding);

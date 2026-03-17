@@ -1,3 +1,5 @@
+/** @file ID3v1 tag implementation. Reads and writes the fixed 128-byte ID3v1 tag block. */
+
 import { ByteVector, StringType } from "../../byteVector.js";
 import { Tag } from "../../tag.js";
 import { IOStream } from "../../toolkit/ioStream.js";
@@ -14,14 +16,22 @@ import {
  * Field lengths are fixed and strings are Latin1-encoded.
  */
 export class ID3v1Tag extends Tag {
+  /** The track title. */
   private _title: string = "";
+  /** The lead artist or performer. */
   private _artist: string = "";
+  /** The album or collection name. */
   private _album: string = "";
+  /** The release year stored as a 4-character Latin1 string. */
   private _year: string = "";
+  /** Free-form comment text. */
   private _comment: string = "";
+  /** The track number within the album (0 if unset). */
   private _track: number = 0;
+  /** The genre index into the ID3v1 genre table (255 = unknown). */
   private _genre: number = 255;
 
+  /** Creates a new, empty ID3v1Tag. */
   constructor() {
     super();
   }
@@ -48,37 +58,50 @@ export class ID3v1Tag extends Tag {
   // Tag interface
   // ---------------------------------------------------------------------------
 
+  /** Gets the track title. */
   get title(): string {
     return this._title;
   }
+  /** Sets the track title. */
   set title(value: string) {
     this._title = value;
   }
 
+  /** Gets the lead artist or performer. */
   get artist(): string {
     return this._artist;
   }
+  /** Sets the lead artist or performer. */
   set artist(value: string) {
     this._artist = value;
   }
 
+  /** Gets the album or collection name. */
   get album(): string {
     return this._album;
   }
+  /** Sets the album or collection name. */
   set album(value: string) {
     this._album = value;
   }
 
+  /** Gets the free-form comment text. */
   get comment(): string {
     return this._comment;
   }
+  /** Sets the free-form comment text. */
   set comment(value: string) {
     this._comment = value;
   }
 
+  /** Gets the genre name resolved from the stored genre index. */
   get genre(): string {
     return genreName(this._genre);
   }
+  /**
+   * Sets the genre by name. Supports ID3v2-style numeric references such as
+   * `"(17)"`. Unrecognised names are stored as index 255 (unknown).
+   */
   set genre(value: string) {
     // Support ID3v2-style "(17)" genre references.
     const match = /^\((\d+)\)/.exec(value);
@@ -89,17 +112,21 @@ export class ID3v1Tag extends Tag {
     this._genre = genreNameToIndex(value) & 0xff;
   }
 
+  /** Gets the release year, or 0 if unset or unparseable. */
   get year(): number {
     const n = parseInt(this._year, 10);
     return isNaN(n) ? 0 : n;
   }
+  /** Sets the release year. A value ≤ 0 clears the field. */
   set year(value: number) {
     this._year = value > 0 ? String(value) : "";
   }
 
+  /** Gets the track number within the album (0 if unset). */
   get track(): number {
     return this._track;
   }
+  /** Sets the track number, clamped to the range 0–255. */
   set track(value: number) {
     this._track = Math.max(0, Math.min(255, value | 0));
   }
@@ -108,9 +135,11 @@ export class ID3v1Tag extends Tag {
   // ID3v1-specific
   // ---------------------------------------------------------------------------
 
+  /** Gets the raw numeric genre index (0–254, or 255 for unknown). */
   get genreNumber(): number {
     return this._genre;
   }
+  /** Sets the raw numeric genre index, clamped to the range 0–255. */
   set genreNumber(value: number) {
     this._genre = Math.max(0, Math.min(255, value | 0));
   }
@@ -159,6 +188,10 @@ export class ID3v1Tag extends Tag {
   // Private
   // ---------------------------------------------------------------------------
 
+  /**
+   * Parses a raw 128-byte ID3v1 tag buffer, populating all tag fields.
+   * @param data - Raw 128-byte tag buffer including the "TAG" identifier.
+   */
   private parse(data: ByteVector): void {
     let offset = 3;
 
@@ -187,6 +220,11 @@ export class ID3v1Tag extends Tag {
     this._genre = data.get(offset);
   }
 
+  /**
+   * Strips null bytes and trailing whitespace from a fixed-length Latin1 string field.
+   * @param data - The raw fixed-length string field.
+   * @returns The trimmed string.
+   */
   private parseString(data: ByteVector): string {
     return data.toString(StringType.Latin1).replace(/\0+$/, "").trimEnd();
   }
