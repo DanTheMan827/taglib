@@ -1,3 +1,4 @@
+/** @file ID3v2 synchronized lyrics frame (SYLT). Stores timestamped lyrics or text. */
 import { ByteVector, StringType } from "../../../byteVector.js";
 import {
   Id3v2Frame,
@@ -19,8 +20,11 @@ export enum SynchedTextType {
   ImageUrls = 0x08,
 }
 
+/** A single timed text entry in a SYLT frame. */
 export interface SynchedText {
+  /** Timestamp of the text entry, in units determined by the frame's timestamp format. */
   time: number;
+  /** The text content of this entry. */
   text: string;
 }
 
@@ -32,13 +36,23 @@ export interface SynchedText {
  *            + repeated (text(null-terminated in encoding) + timestamp(4 big-endian)).
  */
 export class SynchronizedLyricsFrame extends Id3v2Frame {
+  /** Text encoding used for strings in this frame. */
   private _encoding: StringType = StringType.UTF8;
+  /** Three-byte ISO-639-2 language code for the content. */
   private _language: ByteVector = ByteVector.fromString("XXX", StringType.Latin1);
+  /** Short content description string (null-terminated in the encoding). */
   private _description: string = "";
+  /** Timestamp format: 1 = MPEG frames, 2 = milliseconds. */
   private _timestampFormat: number = 2;
+  /** Content type of the synchronized text (e.g., lyrics, events). */
   private _textType: SynchedTextType = SynchedTextType.Other;
+  /** Ordered list of timed text entries. */
   private _synchedText: SynchedText[] = [];
 
+  /**
+   * Creates a new SYLT frame with the specified text encoding.
+   * @param encoding - The string encoding to use for all text fields. Defaults to {@link StringType.UTF8}.
+   */
   constructor(encoding: StringType = StringType.UTF8) {
     const header = new Id3v2FrameHeader(
       ByteVector.fromString("SYLT", StringType.Latin1),
@@ -49,18 +63,34 @@ export class SynchronizedLyricsFrame extends Id3v2Frame {
 
   // -- Accessors --------------------------------------------------------------
 
+  /**
+   * Gets the text encoding used for strings in this frame.
+   * @returns The current {@link StringType} encoding.
+   */
   get encoding(): StringType {
     return this._encoding;
   }
 
+  /**
+   * Sets the text encoding for strings in this frame.
+   * @param e - The {@link StringType} encoding to use.
+   */
   set encoding(e: StringType) {
     this._encoding = e;
   }
 
+  /**
+   * Gets the three-byte ISO-639-2 language code.
+   * @returns A {@link ByteVector} containing the three-byte language code.
+   */
   get language(): ByteVector {
     return this._language;
   }
 
+  /**
+   * Sets the language code, truncating or padding to exactly three bytes.
+   * @param lang - The language bytes to set.
+   */
   set language(lang: ByteVector) {
     this._language = lang.mid(0, 3);
     if (this._language.length < 3) {
@@ -68,39 +98,75 @@ export class SynchronizedLyricsFrame extends Id3v2Frame {
     }
   }
 
+  /**
+   * Gets the content description string.
+   * @returns The description string.
+   */
   get description(): string {
     return this._description;
   }
 
+  /**
+   * Sets the content description string.
+   * @param value - The new description string.
+   */
   set description(value: string) {
     this._description = value;
   }
 
-  /** 1 = MPEG frames, 2 = milliseconds. */
+  /**
+   * Gets the timestamp format used for synched text entries.
+   * 1 = MPEG frames, 2 = milliseconds.
+   * @returns The numeric timestamp format identifier.
+   */
   get timestampFormat(): number {
     return this._timestampFormat;
   }
 
+  /**
+   * Sets the timestamp format used for synched text entries.
+   * @param v - 1 for MPEG frames, 2 for milliseconds.
+   */
   set timestampFormat(v: number) {
     this._timestampFormat = v;
   }
 
+  /**
+   * Gets the content type of the synchronized text.
+   * @returns The {@link SynchedTextType} of this frame.
+   */
   get textType(): SynchedTextType {
     return this._textType;
   }
 
+  /**
+   * Sets the content type of the synchronized text.
+   * @param v - The {@link SynchedTextType} to set.
+   */
   set textType(v: SynchedTextType) {
     this._textType = v;
   }
 
+  /**
+   * Gets the ordered list of timed text entries.
+   * @returns An array of {@link SynchedText} entries.
+   */
   get synchedText(): SynchedText[] {
     return this._synchedText;
   }
 
+  /**
+   * Sets the ordered list of timed text entries.
+   * @param text - The array of {@link SynchedText} entries to store.
+   */
   set synchedText(text: SynchedText[]) {
     this._synchedText = text;
   }
 
+  /**
+   * Returns the description string.
+   * @returns The content description of this frame.
+   */
   toString(): string {
     return this._description;
   }
@@ -121,6 +187,11 @@ export class SynchronizedLyricsFrame extends Id3v2Frame {
 
   // -- Protected --------------------------------------------------------------
 
+  /**
+   * Parses the raw frame fields into structured SYLT data.
+   * @param data - The raw field bytes of the frame.
+   * @param _version - The ID3v2 version (unused).
+   */
   protected parseFields(data: ByteVector, _version: number): void {
     if (data.length < 6) return;
 
@@ -162,6 +233,11 @@ export class SynchronizedLyricsFrame extends Id3v2Frame {
     }
   }
 
+  /**
+   * Serializes the SYLT frame fields into bytes.
+   * @param _version - The ID3v2 version (unused).
+   * @returns A {@link ByteVector} containing the encoded frame fields.
+   */
   protected renderFields(_version: number): ByteVector {
     const v = new ByteVector();
     v.append(this._encoding);
