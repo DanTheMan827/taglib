@@ -1,0 +1,62 @@
+name: Build & Publish TypeDoc
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+    branches: ['*']
+
+jobs:
+  build-docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    outputs:
+      docs-path: docs
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (latest LTS)
+        uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate TypeDoc docs
+        run: npx typedoc
+
+      - name: Upload docs as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: typedoc-docs
+          path: docs/*
+
+  publish-docs:
+    name: Deploy Documentation to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build-docs
+    if: github.ref == 'refs/heads/master'
+
+    permissions:
+      contents: read
+      pages: write
+
+    steps:
+      - name: Download docs artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: typedoc-docs
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+        with:
+          # Directory to deploy
+          directory: docs
