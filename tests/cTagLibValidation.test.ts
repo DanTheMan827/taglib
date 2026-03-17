@@ -153,7 +153,7 @@ async function tagWithTS(
     ref.setComplexProperties("PICTURE", [makePictureMap(makeTestJPEG())]);
   }
 
-  ref.save();
+  await ref.save();
   const stream = ref.file()!.stream() as ByteVectorStream;
   return new Uint8Array(stream.data().data);
 }
@@ -518,7 +518,7 @@ describe("OGG page structure validation", () => {
     const ref = await FileRef.fromByteArray(new Uint8Array(original), "test.ogg");
     ref.tag()!.title  = "OGG Structure Test";
     ref.tag()!.artist = "Test";
-    ref.save();
+    await ref.save();
 
     const stream = ref.file()!.stream() as ByteVectorStream;
     const tagged = parseOggPages(new Uint8Array(stream.data().data));
