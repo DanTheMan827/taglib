@@ -1,3 +1,4 @@
+/** @file ID3v2 ownership frame (OWNE). Records purchase and ownership information. */
 import { ByteVector, StringType } from "../../../byteVector.js";
 import {
   Id3v2Frame,
@@ -12,11 +13,19 @@ import {
  *            + datePurchased(8 bytes YYYYMMDD) + seller(in encoding).
  */
 export class OwnershipFrame extends Id3v2Frame {
+  /** Text encoding used for the seller field. */
   private _encoding: StringType = StringType.UTF8;
+  /** Price paid for the item, stored as a null-terminated Latin1 string. */
   private _pricePaid: string = "";
+  /** Date of purchase as an 8-character YYYYMMDD string. */
   private _datePurchased: string = "";
+  /** Name or identifier of the seller. */
   private _seller: string = "";
 
+  /**
+   * Creates a new, empty OWNE frame.
+   * @param encoding - Text encoding to use for the seller field. Defaults to UTF-8.
+   */
   constructor(encoding: StringType = StringType.UTF8) {
     const header = new Id3v2FrameHeader(
       ByteVector.fromString("OWNE", StringType.Latin1),
@@ -27,18 +36,22 @@ export class OwnershipFrame extends Id3v2Frame {
 
   // -- Accessors --------------------------------------------------------------
 
+  /** Gets the text encoding used for the seller field. */
   get encoding(): StringType {
     return this._encoding;
   }
 
+  /** Sets the text encoding used for the seller field. */
   set encoding(e: StringType) {
     this._encoding = e;
   }
 
+  /** Gets the price paid for the item. */
   get pricePaid(): string {
     return this._pricePaid;
   }
 
+  /** Sets the price paid for the item. */
   set pricePaid(value: string) {
     this._pricePaid = value;
   }
@@ -52,14 +65,20 @@ export class OwnershipFrame extends Id3v2Frame {
     this._datePurchased = value;
   }
 
+  /** Gets the name or identifier of the seller. */
   get seller(): string {
     return this._seller;
   }
 
+  /** Sets the name or identifier of the seller. */
   set seller(value: string) {
     this._seller = value;
   }
 
+  /**
+   * Returns a human-readable summary combining the seller, date, and price.
+   * @returns A string of the form `"<seller> <datePurchased> <pricePaid>"`.
+   */
   toString(): string {
     return `${this._seller} ${this._datePurchased} ${this._pricePaid}`;
   }
@@ -80,6 +99,11 @@ export class OwnershipFrame extends Id3v2Frame {
 
   // -- Protected --------------------------------------------------------------
 
+  /**
+   * Parses the binary payload of the OWNE frame.
+   * @param data - Raw field bytes beginning with the encoding byte.
+   * @param _version - ID3v2 version (unused; parsing is version-independent).
+   */
   protected parseFields(data: ByteVector, _version: number): void {
     if (data.length < 1) return;
 
@@ -103,6 +127,11 @@ export class OwnershipFrame extends Id3v2Frame {
     }
   }
 
+  /**
+   * Serialises the frame fields into a binary payload.
+   * @param _version - ID3v2 version (unused; rendering is version-independent).
+   * @returns A `ByteVector` containing the encoding byte, null-terminated price, 8-byte date, and seller string.
+   */
   protected renderFields(_version: number): ByteVector {
     const v = new ByteVector();
     v.append(this._encoding);

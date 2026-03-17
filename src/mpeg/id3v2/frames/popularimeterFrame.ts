@@ -1,3 +1,4 @@
+/** @file ID3v2 popularimeter frame (POPM). Stores a per-user email address, rating, and play counter. */
 import { ByteVector, StringType } from "../../../byteVector.js";
 import {
   Id3v2Frame,
@@ -11,10 +12,14 @@ import {
  * Structure: email(null-terminated Latin1) + rating(1 byte) + counter(variable, big-endian).
  */
 export class PopularimeterFrame extends Id3v2Frame {
+  /** Email address identifying the user this rating belongs to. */
   private _email: string = "";
+  /** Popularity rating in the range 0–255. */
   private _rating: number = 0;
+  /** Play counter tracking how many times the file has been played. */
   private _counter: bigint = 0n;
 
+  /** Creates a new, empty POPM frame. */
   constructor() {
     const header = new Id3v2FrameHeader(
       ByteVector.fromString("POPM", StringType.Latin1),
@@ -24,10 +29,12 @@ export class PopularimeterFrame extends Id3v2Frame {
 
   // -- Accessors --------------------------------------------------------------
 
+  /** Gets the email address identifying the user this rating belongs to. */
   get email(): string {
     return this._email;
   }
 
+  /** Sets the email address identifying the user this rating belongs to. */
   set email(value: string) {
     this._email = value;
   }
@@ -41,14 +48,20 @@ export class PopularimeterFrame extends Id3v2Frame {
     this._rating = Math.max(0, Math.min(255, value | 0));
   }
 
+  /** Gets the play counter for this frame. */
   get counter(): bigint {
     return this._counter;
   }
 
+  /** Sets the play counter, clamping negative values to zero. */
   set counter(value: bigint) {
     this._counter = value < 0n ? 0n : value;
   }
 
+  /**
+   * Returns a human-readable summary of the email and rating.
+   * @returns A string of the form `"<email> <rating>/255"`.
+   */
   toString(): string {
     return `${this._email} ${this._rating}/255`;
   }
@@ -69,6 +82,11 @@ export class PopularimeterFrame extends Id3v2Frame {
 
   // -- Protected --------------------------------------------------------------
 
+  /**
+   * Parses the binary payload of the POPM frame.
+   * @param data - Raw field bytes beginning with the null-terminated email address.
+   * @param _version - ID3v2 version (unused; parsing is version-independent).
+   */
   protected parseFields(data: ByteVector, _version: number): void {
     const nullIdx = findNullTerminator(data, StringType.Latin1, 0);
     if (nullIdx < 0) {
@@ -95,6 +113,11 @@ export class PopularimeterFrame extends Id3v2Frame {
     }
   }
 
+  /**
+   * Serialises the frame fields into a binary payload.
+   * @param _version - ID3v2 version (unused; rendering is version-independent).
+   * @returns A `ByteVector` containing the null-terminated email, rating byte, and big-endian play counter.
+   */
   protected renderFields(_version: number): ByteVector {
     const v = new ByteVector();
     v.append(ByteVector.fromString(this._email, StringType.Latin1));

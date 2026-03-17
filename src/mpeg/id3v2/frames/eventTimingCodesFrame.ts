@@ -1,3 +1,4 @@
+/** @file ID3v2 event timing codes frame (ETCO). Stores timestamped event markers within the audio stream. */
 import { ByteVector, StringType } from "../../../byteVector.js";
 import { Id3v2Frame, Id3v2FrameHeader } from "../id3v2Frame.js";
 
@@ -46,8 +47,11 @@ export enum EventType {
   AudioFileEnds = 0xfe,
 }
 
+/** A single timed event entry in an ETCO frame. */
 export interface SynchedEvent {
+  /** Timestamp of the event, in units defined by the frame's timestamp format. */
   time: number;
+  /** The type of event occurring at this timestamp. */
   type: EventType;
 }
 
@@ -57,9 +61,12 @@ export interface SynchedEvent {
  * Structure: timestampFormat(1) + repeated (eventType(1) + timestamp(4 big-endian)).
  */
 export class EventTimingCodesFrame extends Id3v2Frame {
+  /** Timestamp format byte: 1 = MPEG frames, 2 = milliseconds. */
   private _timestampFormat: number = 2; // default: milliseconds
+  /** Ordered list of synched events stored in this frame. */
   private _synchedEvents: SynchedEvent[] = [];
 
+  /** Creates a new, empty ETCO frame with the timestamp format defaulting to milliseconds. */
   constructor() {
     const header = new Id3v2FrameHeader(
       ByteVector.fromString("ETCO", StringType.Latin1),
@@ -74,18 +81,25 @@ export class EventTimingCodesFrame extends Id3v2Frame {
     return this._timestampFormat;
   }
 
+  /** Sets the timestamp format. Use 1 for MPEG frames or 2 for milliseconds. */
   set timestampFormat(v: number) {
     this._timestampFormat = v;
   }
 
+  /** Gets the ordered list of synched events stored in this frame. */
   get synchedEvents(): SynchedEvent[] {
     return this._synchedEvents;
   }
 
+  /** Sets the list of timed events for this frame. */
   set synchedEvents(events: SynchedEvent[]) {
     this._synchedEvents = events;
   }
 
+  /**
+   * Returns a human-readable summary of the frame.
+   * @returns A string reporting the number of events stored in this frame.
+   */
   toString(): string {
     return `ETCO: ${this._synchedEvents.length} events`;
   }
@@ -106,6 +120,11 @@ export class EventTimingCodesFrame extends Id3v2Frame {
 
   // -- Protected --------------------------------------------------------------
 
+  /**
+   * Parses the binary payload of the ETCO frame.
+   * @param data - Raw field bytes beginning with the timestamp format byte.
+   * @param _version - ID3v2 version (unused; parsing is version-independent).
+   */
   protected parseFields(data: ByteVector, _version: number): void {
     if (data.length < 1) return;
 
@@ -121,6 +140,11 @@ export class EventTimingCodesFrame extends Id3v2Frame {
     }
   }
 
+  /**
+   * Serialises the frame fields into a binary payload.
+   * @param _version - ID3v2 version (unused; rendering is version-independent).
+   * @returns A `ByteVector` containing the timestamp format byte followed by each event's type and 4-byte big-endian timestamp.
+   */
   protected renderFields(_version: number): ByteVector {
     const v = new ByteVector();
     v.append(this._timestampFormat);
