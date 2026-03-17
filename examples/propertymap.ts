@@ -57,7 +57,7 @@ if (unsupported.size > 0) {
   }
 }
 
-ref.save();
+await ref.save();
 
 // --- Get modified bytes ---
 const file = ref.file();
