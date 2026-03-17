@@ -1,3 +1,5 @@
+/** @file ASF / WMA file implementation including internal object parsing hierarchy. */
+
 import { ByteVector, StringType } from "../byteVector.js";
 import { File } from "../file.js";
 import { Position, ReadStyle } from "../toolkit/types.js";
@@ -31,6 +33,11 @@ import {
 // Internal object hierarchy for ASF parsing / saving
 // ---------------------------------------------------------------------------
 
+/**
+ * Common interface shared by all ASF object types that appear inside the
+ * Header Object.  Each object knows how to parse itself from a file stream
+ * and render itself back to bytes.
+ */
 interface BaseObject {
   guid(): ByteVector;
   parse(file: AsfFile, size: bigint): Promise<void>;
@@ -38,6 +45,12 @@ interface BaseObject {
   data: ByteVector;
 }
 
+/**
+ * Render `obj`'s GUID, 64-bit size, and payload into a single `ByteVector`.
+ *
+ * @param obj - The object to render.
+ * @returns Serialized header-object bytes (24-byte prefix + data).
+ */
 function baseRender(obj: BaseObject): ByteVector {
   const result = ByteVector.fromByteVector(obj.guid());
   result.append(ByteVector.fromLongLong(BigInt(obj.data.length + 24), false));
@@ -45,6 +58,14 @@ function baseRender(obj: BaseObject): ByteVector {
   return result;
 }
 
+/**
+ * Read the raw payload of an ASF object (everything after its 24-byte prefix)
+ * into `obj.data`.
+ *
+ * @param obj - The object whose `data` field will be populated.
+ * @param file - The file being parsed (positioned just after the 24-byte prefix).
+ * @param size - Total size of the object including the 24-byte prefix.
+ */
 async function baseParse(obj: BaseObject, file: AsfFile, size: bigint): Promise<void> {
   obj.data = new ByteVector();
   const s = Number(size);
@@ -53,7 +74,7 @@ async function baseParse(obj: BaseObject, file: AsfFile, size: bigint): Promise<
   }
 }
 
-// Unknown object - stores data opaquely
+/** Stores an unrecognised ASF object opaquely so it can be round-tripped. */
 class UnknownObject implements BaseObject {
   data = new ByteVector();
   private _guid: ByteVector;
@@ -63,7 +84,7 @@ class UnknownObject implements BaseObject {
   render(): ByteVector { return baseRender(this); }
 }
 
-// File Properties Object
+/** Parses the File Properties Object to extract stream duration and preroll. */
 class FilePropertiesObject implements BaseObject {
   data = new ByteVector();
   guid(): ByteVector { return filePropertiesGuid; }
@@ -79,7 +100,7 @@ class FilePropertiesObject implements BaseObject {
   render(): ByteVector { return baseRender(this); }
 }
 
-// Stream Properties Object
+/** Parses the Stream Properties Object to extract codec and audio format details. */
 class StreamPropertiesObject implements BaseObject {
   data = new ByteVector();
   guid(): ByteVector { return streamPropertiesGuid; }
@@ -95,7 +116,10 @@ class StreamPropertiesObject implements BaseObject {
   render(): ByteVector { return baseRender(this); }
 }
 
-// Content Description Object
+/**
+ * Parses/renders the Content Description Object (title, artist, copyright,
+ * comment, rating).
+ */
 class ContentDescriptionObject implements BaseObject {
   data = new ByteVector();
   guid(): ByteVector { return contentDescriptionGuid; }
@@ -132,7 +156,7 @@ class ContentDescriptionObject implements BaseObject {
   }
 }
 
-// Extended Content Description Object
+/** Parses/renders the Extended Content Description Object (arbitrary attribute list). */
 class ExtendedContentDescriptionObject implements BaseObject {
   data = new ByteVector();
   attributeData: ByteVector[] = [];
@@ -153,7 +177,7 @@ class ExtendedContentDescriptionObject implements BaseObject {
   }
 }
 
-// Metadata Object
+/** Parses/renders the Metadata Object (stream-specific attributes, no language index). */
 class MetadataObject implements BaseObject {
   data = new ByteVector();
   attributeData: ByteVector[] = [];
@@ -174,7 +198,10 @@ class MetadataObject implements BaseObject {
   }
 }
 
-// Metadata Library Object
+/**
+ * Parses/renders the Metadata Library Object (stream- and language-specific
+ * attributes, supports large values > 64 KB).
+ */
 class MetadataLibraryObject implements BaseObject {
   data = new ByteVector();
   attributeData: ByteVector[] = [];
@@ -195,7 +222,10 @@ class MetadataLibraryObject implements BaseObject {
   }
 }
 
-// Header Extension Object
+/**
+ * Parses/renders the Header Extension Object, which acts as a nested container
+ * for the Metadata and Metadata Library objects.
+ */
 class HeaderExtensionObject implements BaseObject {
   data = new ByteVector();
   objects: BaseObject[] = [];
@@ -252,7 +282,7 @@ class HeaderExtensionObject implements BaseObject {
   }
 }
 
-// Codec List Object
+/** Parses the Codec List Object to extract the human-readable codec name and description. */
 class CodecListObject implements BaseObject {
   data = new ByteVector();
   guid(): ByteVector { return codecListGuid; }
@@ -301,14 +331,25 @@ class CodecListObject implements BaseObject {
 // AsfFile
 // ---------------------------------------------------------------------------
 
+/**
+ * Reads and writes ASF (Advanced Systems Format) files, including WMA and WMV.
+ *
+ * The file is parsed on construction; call {@link save} to write metadata
+ * changes back to the stream.
+ */
 export class AsfFile extends File {
   /** @internal */ _tag: AsfTag | null = null;
   /** @internal */ _properties: AsfProperties | null = null;
+  /** @internal Total size of the ASF Header Object in bytes. */
   /** @internal */ _headerSize = 0n;
 
+  /** List of all top-level header sub-objects in parse order. */
   private _objects: BaseObject[] = [];
+  /** Parsed Content Description Object, or `null` if absent. */
   private _contentDescriptionObject: ContentDescriptionObject | null = null;
+  /** Parsed Extended Content Description Object, or `null` if absent. */
   private _extendedContentDescriptionObject: ExtendedContentDescriptionObject | null = null;
+  /** Parsed Header Extension Object, or `null` if absent. */
   private _headerExtensionObject: HeaderExtensionObject | null = null;
   /** @internal */ _metadataObject: MetadataObject | null = null;
   /** @internal */ _metadataLibraryObject: MetadataLibraryObject | null = null;
@@ -316,10 +357,21 @@ export class AsfFile extends File {
   /** @internal - used by inner parser objects to invalidate */
   setFileInvalid(): void { this._valid = false; }
 
+  /**
+   * @param stream - The stream backing this file.
+   */
   private constructor(stream: IOStream) {
     super(stream);
   }
 
+  /**
+   * Open and parse an ASF file from `stream`.
+   *
+   * @param stream - Readable (and optionally writable) stream.
+   * @param _readProperties - Whether to read audio properties (currently always read).
+   * @param _readStyle - Level of detail for audio properties parsing.
+   * @returns A resolved promise containing the populated {@link AsfFile}.
+   */
   static async open(
     stream: IOStream,
     _readProperties = true,
@@ -334,7 +386,9 @@ export class AsfFile extends File {
 
   // -- File interface --
 
+  /** Returns the ASF tag, or `null` if the file has not been parsed yet. */
   tag(): AsfTag | null { return this._tag; }
+  /** Returns the audio properties, or `null` if the file has not been parsed yet. */
   audioProperties(): AsfProperties | null { return this._properties; }
 
   async save(): Promise<boolean> {
@@ -409,6 +463,12 @@ export class AsfFile extends File {
 
   // -- Static --
 
+  /**
+   * Quickly determine whether `stream` starts with the ASF Header GUID.
+   *
+   * @param stream - The stream to probe (will be seeked to position 0).
+   * @returns `true` if the stream begins with the ASF Header Object GUID.
+   */
   static async isSupported(stream: IOStream): Promise<boolean> {
     await stream.seek(0);
     const id = await stream.readBlock(16);
@@ -417,15 +477,22 @@ export class AsfFile extends File {
 
   // -- PropertyMap delegation --
 
+  /** @inheritdoc */
   override properties(): PropertyMap { return this._tag?.properties() ?? new PropertyMap(); }
+  /** @inheritdoc */
   override setProperties(properties: PropertyMap): PropertyMap { return this._tag?.setProperties(properties) ?? properties; }
+  /** @inheritdoc */
   override removeUnsupportedProperties(properties: string[]): void { this._tag?.removeUnsupportedProperties(properties); }
+  /** @inheritdoc */
   override complexPropertyKeys(): string[] { return this._tag?.complexPropertyKeys() ?? []; }
+  /** @inheritdoc */
   override complexProperties(key: string): VariantMap[] { return this._tag?.complexProperties(key) ?? []; }
+  /** @inheritdoc */
   override setComplexProperties(key: string, value: VariantMap[]): boolean { return this._tag?.setComplexProperties(key, value) ?? false; }
 
   // -- Internal --
 
+  /** Parse the ASF Header Object and populate tag / properties. */
   private async read(): Promise<void> {
     if (!this.isValid) return;
 

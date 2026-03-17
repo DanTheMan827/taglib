@@ -1,3 +1,4 @@
+/** @file Matroska/WebM file format handler. */
 import { File } from "../file.js";
 import { IOStream } from "../toolkit/ioStream.js";
 import { Position, ReadStyle } from "../toolkit/types.js";
@@ -25,22 +26,41 @@ import {
  * (MKV, MKA, WebM).
  */
 export class MatroskaFile extends File {
+  /** The Matroska tag for this file, or `null` if not yet parsed. */
   private _tag: MatroskaTag | null = null;
+  /** Audio properties for this file, or `null` if not yet parsed. */
   private _properties: MatroskaProperties | null = null;
+  /** Read style used during parsing, retained for lazy property construction. */
   private _readStyle: ReadStyle;
 
   // Element locations saved during read, used during save
+  /** The parsed Tags EBML element, or `null` if absent. */
   private _tagsEl: EbmlElement | null = null;
+  /** The parsed Attachments EBML element, or `null` if absent. */
   private _attachmentsEl: EbmlElement | null = null;
   // Segment size VINT location: byte offset right after the segment ID
+  /** Byte offset of the segment size VINT, or -1 if unknown. */
   private _segmentSizeVintOffset: number = -1;
+  /** Byte length of the segment size VINT encoding. */
   private _segmentSizeVintLength: number = 0;
 
+  /**
+   * Private constructor — use {@link MatroskaFile.open} instead.
+   * @param stream - The underlying I/O stream.
+   * @param readStyle - Detail level for audio property parsing.
+   */
   private constructor(stream: IOStream, readStyle: ReadStyle = ReadStyle.Average) {
     super(stream);
     this._readStyle = readStyle;
   }
 
+  /**
+   * Open and parse a Matroska file.
+   * @param stream - The I/O stream to read from.
+   * @param readProperties - Whether to parse audio properties.
+   * @param readStyle - Detail level for audio property parsing.
+   * @returns A fully initialized {@link MatroskaFile} instance.
+   */
   static async open(
     stream: IOStream,
     readProperties: boolean = true,
@@ -53,14 +73,20 @@ export class MatroskaFile extends File {
     return f;
   }
 
+  /** Returns the Matroska tag, or `null` if not present. */
   tag(): MatroskaTag | null {
     return this._tag;
   }
 
+  /** Returns the audio properties, or `null` if not parsed. */
   audioProperties(): MatroskaProperties | null {
     return this._properties;
   }
 
+  /**
+   * Write the current tag and attachments back to the file.
+   * @returns `true` on success, `false` if the file is read-only or invalid.
+   */
   async save(): Promise<boolean> {
     if (this.readOnly) {
       return false;
@@ -172,10 +198,16 @@ export class MatroskaFile extends File {
     await this._stream.writeBlock(data);
   }
 
+  /** Returns the tag's PropertyMap, or an empty map if no tag exists. */
   override properties(): PropertyMap {
     return this._tag?.properties() ?? new PropertyMap();
   }
 
+  /**
+   * Set tag properties from a PropertyMap.
+   * @param properties - The properties to apply.
+   * @returns A map of properties that could not be set.
+   */
   override setProperties(properties: PropertyMap): PropertyMap {
     if (!this._tag) {
       this._tag = new MatroskaTag();
@@ -183,18 +215,34 @@ export class MatroskaFile extends File {
     return this._tag.setProperties(properties);
   }
 
+  /**
+   * Remove unsupported properties from the tag.
+   * @param properties - Property keys to remove.
+   */
   override removeUnsupportedProperties(properties: string[]): void {
     this._tag?.removeUnsupportedProperties(properties);
   }
 
+  /** Returns the list of supported complex property keys (e.g. `"PICTURE"`). */
   override complexPropertyKeys(): string[] {
     return this._tag?.complexPropertyKeys() ?? [];
   }
 
+  /**
+   * Returns complex property values for the given key.
+   * @param key - The complex property key (e.g. `"PICTURE"`).
+   * @returns An array of variant maps, one per complex property value.
+   */
   override complexProperties(key: string): VariantMap[] {
     return this._tag?.complexProperties(key) ?? [];
   }
 
+  /**
+   * Set complex property values for the given key.
+   * @param key - The complex property key (e.g. `"PICTURE"`).
+   * @param value - An array of variant maps to set.
+   * @returns `true` if the key was handled, `false` otherwise.
+   */
   override setComplexProperties(key: string, value: VariantMap[]): boolean {
     return this._tag?.setComplexProperties(key, value) ?? false;
   }
@@ -203,6 +251,11 @@ export class MatroskaFile extends File {
   // Parsing
   // ---------------------------------------------------------------------------
 
+  /**
+   * Parse the EBML/Matroska structure from the stream.
+   * @param readProperties - Whether to parse audio properties.
+   * @param readStyle - Detail level for audio property parsing.
+   */
   private async read(readProperties: boolean, readStyle: ReadStyle): Promise<void> {
     const fileLength = await this.fileLength();
     await this._stream.seek(0, Position.Beginning);
@@ -364,6 +417,12 @@ export class MatroskaFile extends File {
     this._valid = true;
   }
 
+  /**
+   * Parse a SeekHead element and populate `positions` with element ID → absolute offset.
+   * @param segmentDataOffset - Absolute byte offset of the segment data start.
+   * @param seekHeadEl - The SeekHead EBML element to parse.
+   * @param positions - Map to populate with element ID → file offset entries.
+   */
   private async parseSeekHead(
     segmentDataOffset: number,
     seekHeadEl: EbmlElement,
@@ -379,6 +438,12 @@ export class MatroskaFile extends File {
     }
   }
 
+  /**
+   * Parse a single Seek entry and add the resolved absolute offset to `positions`.
+   * @param segmentDataOffset - Absolute byte offset of the segment data start.
+   * @param seekEl - The Seek EBML element to parse.
+   * @param positions - Map to update with element ID → file offset.
+   */
   private async parseSeekEntry(
     segmentDataOffset: number,
     seekEl: EbmlElement,
@@ -406,6 +471,11 @@ export class MatroskaFile extends File {
     }
   }
 
+  /**
+   * Parse the Segment Info element and update audio properties with duration and title.
+   * @param infoEl - The Info EBML element to parse.
+   * @param readProperties - Whether to populate audio properties.
+   */
   private async parseInfo(infoEl: EbmlElement, readProperties: boolean): Promise<void> {
     if (!readProperties) return;
     if (!this._properties) {
@@ -443,6 +513,10 @@ export class MatroskaFile extends File {
     }
   }
 
+  /**
+   * Parse the Tracks element to locate the first audio track.
+   * @param tracksEl - The Tracks EBML element to parse.
+   */
   private async parseTracks(tracksEl: EbmlElement): Promise<void> {
     if (!this._properties) {
       this._properties = new MatroskaProperties(this._readStyle);
@@ -463,6 +537,11 @@ export class MatroskaFile extends File {
     }
   }
 
+  /**
+   * Parse a single TrackEntry element and extract audio codec information.
+   * @param trackEntryEl - The TrackEntry EBML element to parse.
+   * @param audioAlreadyFound - Whether an audio track has already been processed.
+   */
   private async parseTrackEntry(trackEntryEl: EbmlElement, audioAlreadyFound: boolean): Promise<void> {
     const dataOffset = trackEntryEl.offset + trackEntryEl.headSize;
     const children = await readChildElements(this._stream, dataOffset, trackEntryEl.dataSize);
@@ -495,6 +574,11 @@ export class MatroskaFile extends File {
     }
   }
 
+  /**
+   * Parse the Audio sub-element of a TrackEntry and populate sample rate,
+   * channel count, and bit depth on the audio properties.
+   * @param audioEl - The Audio EBML element to parse.
+   */
   private async parseAudioElement(audioEl: EbmlElement): Promise<void> {
     const dataOffset = audioEl.offset + audioEl.headSize;
     const children = await readChildElements(this._stream, dataOffset, audioEl.dataSize);

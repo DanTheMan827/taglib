@@ -1,3 +1,4 @@
+/** @file Impulse Tracker (IT) file format handler. */
 import { ByteVector, StringType } from "../byteVector.js";
 import { File } from "../file.js";
 import { Tag } from "../tag.js";
@@ -22,14 +23,27 @@ function readString(data: ByteVector, maxLen: number): string {
  * Instrument and sample names form the comment, plus an optional message.
  */
 export class ItFile extends File {
+  /** Parsed tag holding title, comment, and tracker name. */
   private _tag: ModTag;
+  /** Parsed audio properties, or null if not yet read. */
   private _properties: ItProperties | null = null;
 
+  /**
+   * Private constructor — use {@link ItFile.open} instead.
+   * @param stream - The underlying I/O stream.
+   */
   private constructor(stream: IOStream) {
     super(stream);
     this._tag = new ModTag();
   }
 
+  /**
+   * Open and parse an Impulse Tracker file.
+   * @param stream - The I/O stream to read from.
+   * @param readProperties - Whether to parse audio properties.
+   * @param readStyle - Detail level for audio property parsing.
+   * @returns A fully initialized {@link ItFile} instance.
+   */
   static async open(
     stream: IOStream,
     readProperties: boolean = true,
@@ -46,6 +60,11 @@ export class ItFile extends File {
   // Static
   // ---------------------------------------------------------------------------
 
+  /**
+   * Check whether a stream contains an Impulse Tracker file.
+   * @param stream - The stream to inspect.
+   * @returns `true` if the stream begins with the "IMPM" magic bytes.
+   */
   static async isSupported(stream: IOStream): Promise<boolean> {
     await stream.seek(0);
     const magic = await stream.readBlock(4);
@@ -57,14 +76,20 @@ export class ItFile extends File {
   // File interface
   // ---------------------------------------------------------------------------
 
+  /** Returns the tag for this file. */
   tag(): Tag {
     return this._tag;
   }
 
+  /** Returns the audio properties, or `null` if not parsed. */
   audioProperties(): ItProperties | null {
     return this._properties;
   }
 
+  /**
+   * Write the current tag data back to the file.
+   * @returns `true` on success, `false` if the file is read-only or data is invalid.
+   */
   async save(): Promise<boolean> {
     if (this.readOnly) return false;
 
@@ -182,6 +207,11 @@ export class ItFile extends File {
   // Private – reading
   // ---------------------------------------------------------------------------
 
+  /**
+   * Parse the IT file header, instrument/sample names, and optional message.
+   * @param readProperties - Whether to populate audio properties.
+   * @param readStyle - Detail level for audio property parsing.
+   */
   private async read(readProperties: boolean, readStyle: ReadStyle): Promise<void> {
     await this.seek(0);
     const magicData = await this.readBlock(4);
@@ -367,6 +397,12 @@ export class ItFile extends File {
 // Helpers
 // =============================================================================
 
+/**
+ * Encode a string as Latin1 bytes, zero-padded or truncated to `len` bytes.
+ * @param s - The string to encode.
+ * @param len - The exact byte length of the returned vector.
+ * @returns A `ByteVector` of exactly `len` bytes.
+ */
 function padString(s: string, len: number): ByteVector {
   const arr = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
@@ -375,6 +411,11 @@ function padString(s: string, len: number): ByteVector {
   return ByteVector.fromByteArray(arr);
 }
 
+/**
+ * Encode a 16-bit unsigned integer in little-endian byte order.
+ * @param value - The value to encode.
+ * @returns A 2-byte `ByteVector`.
+ */
 function writeU16L(value: number): ByteVector {
   const arr = new Uint8Array(2);
   arr[0] = value & 0xff;
@@ -382,6 +423,11 @@ function writeU16L(value: number): ByteVector {
   return ByteVector.fromByteArray(arr);
 }
 
+/**
+ * Encode a 32-bit unsigned integer in little-endian byte order.
+ * @param value - The value to encode.
+ * @returns A 4-byte `ByteVector`.
+ */
 function writeU32L(value: number): ByteVector {
   const arr = new Uint8Array(4);
   arr[0] = value & 0xff;
@@ -391,6 +437,13 @@ function writeU32L(value: number): ByteVector {
   return ByteVector.fromByteArray(arr);
 }
 
+/**
+ * Pad or truncate `data` to exactly `targetLen` bytes.
+ * If shorter, the remaining bytes are zero-filled.
+ * @param data - The source data.
+ * @param targetLen - The desired byte length.
+ * @returns A `ByteVector` of exactly `targetLen` bytes.
+ */
 function padToLength(data: ByteVector, targetLen: number): ByteVector {
   if (data.length >= targetLen) return data.mid(0, targetLen);
   const arr = new Uint8Array(targetLen);

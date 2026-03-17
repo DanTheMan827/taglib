@@ -1,3 +1,4 @@
+/** @file Matroska tag implementation using EBML SimpleTag structures. */
 import { Tag } from "../tag.js";
 import { PropertyMap } from "../toolkit/propertyMap.js";
 import type { VariantMap } from "../toolkit/variant.js";
@@ -18,6 +19,10 @@ import {
 } from "./ebml/ebmlElement.js";
 
 // TargetTypeValue matches the Matroska specification
+/**
+ * Matroska TargetTypeValue hierarchy, as defined in the Matroska specification.
+ * Controls which level of the content hierarchy a tag applies to.
+ */
 export enum TargetTypeValue {
   None = 0,
   Shot = 10,
@@ -29,6 +34,10 @@ export enum TargetTypeValue {
   Collection = 70,
 }
 
+/**
+ * Represents a Matroska SimpleTag element with its name, value,
+ * target type, and optional UID filters.
+ */
 export interface SimpleTag {
   name: string;
   value: string;
@@ -42,6 +51,9 @@ export interface SimpleTag {
   attachmentUid: number;
 }
 
+/**
+ * Represents an attached file stored in a Matroska Attachments element.
+ */
 export interface AttachedFile {
   description: string;
   fileName: string;
@@ -92,6 +104,11 @@ const SIMPLE_TAGS_TRANSLATION: readonly [string, string, TargetTypeValue, boolea
   ["MUSICBRAINZ_RELEASEGROUPID", "MUSICBRAINZ_RELEASEGROUPID", TargetTypeValue.Album, false],
 ];
 
+/**
+ * Translate a PropertyMap key to a Matroska tag name, target type value, and strict flag.
+ * @param key - The PropertyMap key to translate.
+ * @returns A tuple of `[tagName, targetTypeValue, strict]`.
+ */
 function translateKey(key: string): [string, TargetTypeValue, boolean] {
   const upperKey = key.toUpperCase();
   for (const [propKey, tagName, ttv, strict] of SIMPLE_TAGS_TRANSLATION) {
@@ -103,6 +120,12 @@ function translateKey(key: string): [string, TargetTypeValue, boolean] {
   return ["", TargetTypeValue.None, false];
 }
 
+/**
+ * Translate a Matroska tag name and target type value to a PropertyMap key.
+ * @param name - The Matroska tag name.
+ * @param targetTypeValue - The target type value of the tag.
+ * @returns The matching PropertyMap key, or an empty string if not mapped.
+ */
 function translateTag(name: string, targetTypeValue: TargetTypeValue): string {
   for (const [propKey, tagName, ttv, strict] of SIMPLE_TAGS_TRANSLATION) {
     if (name === tagName && (targetTypeValue === ttv ||
@@ -118,58 +141,79 @@ function translateTag(name: string, targetTypeValue: TargetTypeValue): string {
  * Matroska tag implementation. Reads SimpleTag elements from Tags/Tag elements.
  */
 export class MatroskaTag extends Tag {
+  /** List of all SimpleTag entries parsed from or to be written to the file. */
   private _simpleTags: SimpleTag[] = [];
+  /** List of all attached files parsed from or to be written to the file. */
   private _attachedFiles: AttachedFile[] = [];
+  /** Segment title from the Info element, used as fallback for `title`. */
   private _segmentTitle: string = "";
 
+  /** Track title, falling back to the segment title if no TITLE tag is set. */
   get title(): string {
     const s = this.getTag("TITLE");
     return s || this._segmentTitle;
   }
+  /** @param value - Track title. */
   set title(value: string) { this.setTag("TITLE", value); }
 
+  /** Artist name. */
   get artist(): string { return this.getTag("ARTIST"); }
+  /** @param value - Artist name. */
   set artist(value: string) { this.setTag("ARTIST", value); }
 
+  /** Album title. */
   get album(): string { return this.getTag("ALBUM"); }
+  /** @param value - Album title. */
   set album(value: string) { this.setTag("ALBUM", value); }
 
+  /** Track comment. */
   get comment(): string { return this.getTag("COMMENT"); }
+  /** @param value - Track comment. */
   set comment(value: string) { this.setTag("COMMENT", value); }
 
+  /** Genre string. */
   get genre(): string { return this.getTag("GENRE"); }
+  /** @param value - Genre string. */
   set genre(value: string) { this.setTag("GENRE", value); }
 
+  /** Release year, parsed from the DATE tag. Returns 0 if not set. */
   get year(): number {
     const value = this.getTag("DATE");
     if (!value) return 0;
     return parseInt(value.split("-")[0], 10) || 0;
   }
+  /** @param value - Release year; set to 0 to clear. */
   set year(value: number) {
     this.setTag("DATE", value !== 0 ? String(value) : "");
   }
 
+  /** Track number, parsed from the TRACKNUMBER tag. Returns 0 if not set. */
   get track(): number {
     const value = this.getTag("TRACKNUMBER");
     if (!value) return 0;
     return parseInt(value.split("-")[0], 10) || 0;
   }
+  /** @param value - Track number; set to 0 to clear. */
   set track(value: number) {
     this.setTag("TRACKNUMBER", value !== 0 ? String(value) : "");
   }
 
+  /** `true` when no SimpleTags are present. */
   get isEmpty(): boolean {
     return this._simpleTags.length === 0;
   }
 
+  /** All SimpleTag entries stored in this tag. */
   get simpleTags(): SimpleTag[] {
     return this._simpleTags;
   }
 
+  /** All attached files stored in this tag. */
   get attachedFiles(): AttachedFile[] {
     return this._attachedFiles;
   }
 
+  /** @param value - Segment title from the Info element. */
   set segmentTitle(value: string) {
     this._segmentTitle = value;
   }
@@ -178,6 +222,7 @@ export class MatroskaTag extends Tag {
   // PropertyMap
   // ---------------------------------------------------------------------------
 
+  /** Returns all standard tags as a PropertyMap. */
   override properties(): PropertyMap {
     const props = new PropertyMap();
     for (const st of this._simpleTags) {
@@ -192,6 +237,11 @@ export class MatroskaTag extends Tag {
     return props;
   }
 
+  /**
+   * Replace standard tag fields from a PropertyMap.
+   * @param propertyMap - The properties to apply.
+   * @returns A map of properties that could not be mapped to Matroska tags.
+   */
   override setProperties(propertyMap: PropertyMap): PropertyMap {
     // Remove existing simple tags that map to standard properties
     this._simpleTags = this._simpleTags.filter(st => {
@@ -226,12 +276,17 @@ export class MatroskaTag extends Tag {
     return unsupported;
   }
 
+  /**
+   * Remove SimpleTags whose names appear in `properties`.
+   * @param properties - Tag names to remove.
+   */
   override removeUnsupportedProperties(properties: string[]): void {
     this._simpleTags = this._simpleTags.filter(
       st => !properties.includes(st.name),
     );
   }
 
+  /** Returns the list of complex property keys present in this tag (e.g. `"PICTURE"`). */
   override complexPropertyKeys(): string[] {
     const keys: string[] = [];
     for (const st of this._simpleTags) {
@@ -249,6 +304,11 @@ export class MatroskaTag extends Tag {
     return keys;
   }
 
+  /**
+   * Returns complex property values for the given key.
+   * @param key - The complex property key (e.g. `"PICTURE"`).
+   * @returns An array of variant maps, one per value.
+   */
   override complexProperties(key: string): VariantMap[] {
     if (key.toUpperCase() === "PICTURE") {
       return this._attachedFiles
@@ -297,6 +357,11 @@ export class MatroskaTag extends Tag {
   // Internal helpers
   // ---------------------------------------------------------------------------
 
+  /**
+   * Retrieve the value of a standard tag by PropertyMap key.
+   * @param key - The PropertyMap key to look up.
+   * @returns The tag value, or an empty string if not found.
+   */
   private getTag(key: string): string {
     const [name, ttv, strict] = translateKey(key);
     if (!name) return "";
@@ -312,6 +377,11 @@ export class MatroskaTag extends Tag {
     return "";
   }
 
+  /**
+   * Set or clear a standard tag by PropertyMap key.
+   * @param key - The PropertyMap key to set.
+   * @param value - The new value; pass an empty string to clear.
+   */
   private setTag(key: string, value: string): void {
     const [name, ttv] = translateKey(key);
     if (!name) return;
@@ -479,6 +549,11 @@ export class MatroskaTag extends Tag {
     }
   }
 
+  /**
+   * Parse a single Tag element and extract target info and SimpleTag children.
+   * @param stream - The I/O stream to read from.
+   * @param tagElement - The Tag EBML element to parse.
+   */
   private async parseTagElement(stream: IOStream, tagElement: EbmlElement): Promise<void> {
     const dataOffset = tagElement.offset + tagElement.headSize;
     const children = await readChildElements(stream, dataOffset, tagElement.dataSize);
@@ -525,6 +600,16 @@ export class MatroskaTag extends Tag {
     }
   }
 
+  /**
+   * Parse a single SimpleTag element and append it to `_simpleTags`.
+   * @param stream - The I/O stream to read from.
+   * @param simpleTagElement - The SimpleTag EBML element to parse.
+   * @param targetTypeValue - The target type value inherited from the parent Tag element.
+   * @param trackUid - Track UID filter from the parent Targets element.
+   * @param editionUid - Edition UID filter from the parent Targets element.
+   * @param chapterUid - Chapter UID filter from the parent Targets element.
+   * @param attachmentUid - Attachment UID filter from the parent Targets element.
+   */
   private async parseSimpleTag(
     stream: IOStream,
     simpleTagElement: EbmlElement,
@@ -579,6 +664,11 @@ export class MatroskaTag extends Tag {
     }
   }
 
+  /**
+   * Parse a single AttachedFile element and append it to `_attachedFiles`.
+   * @param stream - The I/O stream to read from.
+   * @param element - The AttachedFile EBML element to parse.
+   */
   private async parseAttachedFile(stream: IOStream, element: EbmlElement): Promise<void> {
     const dataOffset = element.offset + element.headSize;
     const children = await readChildElements(stream, dataOffset, element.dataSize);

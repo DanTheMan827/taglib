@@ -1,3 +1,4 @@
+/** @file MP4/M4A tag implementation using iTunes-style ilst atoms. */
 import { ByteVector, StringType } from "../byteVector.js";
 import { Tag } from "../tag.js";
 import type { IOStream } from "../toolkit/ioStream.js";

@@ -1,3 +1,4 @@
+/** @file EBML element parsing and writing utilities for Matroska files. */
 import { ByteVector, StringType } from "../../byteVector.js";
 import { IOStream } from "../../toolkit/ioStream.js";
 import { Position } from "../../toolkit/types.js";

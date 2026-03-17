@@ -1,3 +1,4 @@
+/** @file MP4/M4A atom tree parser. */
 import { StringType } from "../byteVector.js";
 import type { IOStream } from "../toolkit/ioStream.js";
 import { type offset_t, Position } from "../toolkit/types.js";

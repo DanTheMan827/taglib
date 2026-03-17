@@ -1,3 +1,5 @@
+/** @file Audio properties implementation for the Monkey's Audio (APE) format. */
+
 import { AudioProperties } from "../audioProperties.js";
 import { ByteVector, StringType } from "../byteVector.js";
 import type { offset_t, ReadStyle } from "../toolkit/types.js";
@@ -16,18 +18,37 @@ import type { File } from "../file.js";
  * versions use a 26-byte header with embedded WAV format info.
  */
 export class ApeProperties extends AudioProperties {
+  /** APE format version (e.g. 3990, 3980, 3800). */
   private _version: number = 0;
+  /** Duration of the stream in milliseconds. */
   private _lengthInMs: number = 0;
+  /** Average bitrate in kb/s. */
   private _bitrate: number = 0;
+  /** Sample rate in Hz. */
   private _sampleRate: number = 0;
+  /** Number of audio channels. */
   private _channels: number = 0;
+  /** Bits per sample (bit depth). */
   private _bitsPerSample: number = 0;
+  /** Total number of PCM sample frames. */
   private _sampleFrames: number = 0;
 
+  /**
+   * @param readStyle - Level of detail to use when reading properties.
+   */
   private constructor(readStyle: ReadStyle) {
     super(readStyle);
   }
 
+  /**
+   * Asynchronously create and populate an {@link ApeProperties} instance by
+   * reading from `file`.
+   *
+   * @param file - The file to read from (positioned at or near the APE header).
+   * @param streamLength - Byte length of the audio stream, used to compute bitrate.
+   * @param readStyle - Level of detail to use when reading properties.
+   * @returns A resolved promise containing the populated properties object.
+   */
   static async create(file: File, streamLength: offset_t, readStyle: ReadStyle): Promise<ApeProperties> {
     const p = new ApeProperties(readStyle);
     await p.read(file, streamLength);
@@ -38,18 +59,22 @@ export class ApeProperties extends AudioProperties {
   // AudioProperties interface
   // ---------------------------------------------------------------------------
 
+  /** Duration of the audio stream in milliseconds. */
   get lengthInMilliseconds(): number {
     return this._lengthInMs;
   }
 
+  /** Average bitrate of the stream in kb/s. */
   override get bitrate(): number {
     return this._bitrate;
   }
 
+  /** Sample rate of the stream in Hz. */
   override get sampleRate(): number {
     return this._sampleRate;
   }
 
+  /** Number of audio channels. */
   get channels(): number {
     return this._channels;
   }
@@ -58,14 +83,17 @@ export class ApeProperties extends AudioProperties {
   // APE-specific
   // ---------------------------------------------------------------------------
 
+  /** APE format version number (e.g. 3990 for v3.99). */
   get version(): number {
     return this._version;
   }
 
+  /** Bits per sample (bit depth) of the audio stream. */
   get bitsPerSample(): number {
     return this._bitsPerSample;
   }
 
+  /** Total number of PCM sample frames in the stream. */
   get sampleFrames(): number {
     return this._sampleFrames;
   }
@@ -74,6 +102,12 @@ export class ApeProperties extends AudioProperties {
   // Private – reading
   // ---------------------------------------------------------------------------
 
+  /**
+   * Locate the APE descriptor/header in `file` and populate all fields.
+   *
+   * @param file - Open file handle to read from.
+   * @param streamLength - Length of the raw audio stream in bytes.
+   */
   private async read(file: File, streamLength: offset_t): Promise<void> {
     let offset = await file.tell();
     let vers = this.headerVersion(await file.readBlock(6));
@@ -104,6 +138,12 @@ export class ApeProperties extends AudioProperties {
     }
   }
 
+  /**
+   * Extract the APE version number from a 6-byte header block.
+   *
+   * @param header - Six bytes starting with the "MAC " identifier.
+   * @returns The 16-bit version field, or `-1` if the block is not a valid APE header.
+   */
   private headerVersion(header: ByteVector): number {
     if (header.length < 6) return -1;
     const mac = ByteVector.fromString("MAC ", StringType.Latin1);

@@ -1,3 +1,4 @@
+/** @file Tag implementation for tracker module formats. */
 import { Tag } from "../tag.js";
 import { PropertyMap } from "../toolkit/propertyMap.js";
 

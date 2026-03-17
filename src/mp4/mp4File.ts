@@ -1,3 +1,4 @@
+/** @file MP4/M4A/AAC/ALAC file format handler. */
 import { ByteVector, StringType } from "../byteVector.js";
 import { File } from "../file.js";
 import { ReadStyle } from "../toolkit/types.js";

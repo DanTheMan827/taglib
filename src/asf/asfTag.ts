@@ -1,3 +1,5 @@
+/** @file ASF tag implementation with PropertyMap and complex property (picture) support. */
+
 import { Tag } from "../tag.js";
 import { PropertyMap } from "../toolkit/propertyMap.js";
 import { Variant } from "../toolkit/variant.js";
@@ -9,6 +11,10 @@ import { AsfPicture, pictureTypeToString, pictureTypeFromString } from "./asfPic
 // Key translation table: ASF attribute name → standard property key
 // ---------------------------------------------------------------------------
 
+/**
+ * Bidirectional mapping between ASF `WM/*` / `MusicBrainz/*` attribute names
+ * and the standard property key strings used by {@link PropertyMap}.
+ */
 const keyTranslation: [string, string][] = [
   ["WM/AlbumTitle", "ALBUM"],
   ["WM/AlbumArtist", "ALBUMARTIST"],
@@ -66,6 +72,12 @@ const keyTranslation: [string, string][] = [
   ["Acoustid/Fingerprint", "ACOUSTID_FINGERPRINT"],
 ];
 
+/**
+ * Look up the standard property key for a given ASF attribute name.
+ *
+ * @param key - An ASF attribute name (e.g. `"WM/AlbumTitle"`).
+ * @returns The corresponding property key, or `null` when not mapped.
+ */
 function translateKey(key: string): string | null {
   for (const [k, t] of keyTranslation) {
     if (key === k) return t;
@@ -73,8 +85,12 @@ function translateKey(key: string): string | null {
   return null;
 }
 
-// Build reverse map lazily
+/** Lazily initialised reverse lookup (property key → ASF attribute name). */
 let reverseKeyMap: Map<string, string> | null = null;
+/**
+ * Return (and cache) the reverse mapping from standard property key to ASF
+ * attribute name.
+ */
 function getReverseKeyMap(): Map<string, string> {
   if (!reverseKeyMap) {
     reverseKeyMap = new Map();
@@ -89,22 +105,43 @@ function getReverseKeyMap(): Map<string, string> {
 // AsfTag
 // ---------------------------------------------------------------------------
 
+/**
+ * Represents the collection of metadata stored in an ASF file.
+ *
+ * Simple fields (title, artist, copyright, comment, rating) are stored
+ * directly.  All other attributes are held in an attribute-list map keyed
+ * by the ASF attribute name.
+ */
 export class AsfTag extends Tag {
+  /** Track title from the Content Description Object. */
   private _title = "";
+  /** Lead artist from the Content Description Object. */
   private _artist = "";
+  /** Copyright notice from the Content Description Object. */
   private _copyright = "";
+  /** User comment from the Content Description Object. */
   private _comment = "";
+  /** Content rating from the Content Description Object. */
   private _rating = "";
+  /** All other attributes keyed by ASF attribute name. */
   private _attributeListMap: Map<string, AsfAttribute[]> = new Map();
 
   // -- Tag interface --
 
+  /** Track title (Content Description Object). */
   get title(): string { return this._title; }
+  /** @param value - New title. */
   set title(value: string) { this._title = value; }
 
+  /** Lead artist (Content Description Object). */
   get artist(): string { return this._artist; }
+  /** @param value - New artist. */
   set artist(value: string) { this._artist = value; }
 
+  /**
+   * Album title, read from the `WM/AlbumTitle` attribute.
+   * Returns `""` when not present.
+   */
   get album(): string {
     const attrs = this._attributeListMap.get("WM/AlbumTitle");
     if (attrs && attrs.length > 0) {
@@ -112,11 +149,18 @@ export class AsfTag extends Tag {
     }
     return "";
   }
+  /** @param value - New album title; sets the `WM/AlbumTitle` attribute. */
   set album(value: string) { this.setAttribute("WM/AlbumTitle", AsfAttribute.fromString(value)); }
 
+  /** User comment (Content Description Object). */
   get comment(): string { return this._comment; }
+  /** @param value - New comment. */
   set comment(value: string) { this._comment = value; }
 
+  /**
+   * Genre, read from the `WM/Genre` attribute.
+   * Returns `""` when not present.
+   */
   get genre(): string {
     const attrs = this._attributeListMap.get("WM/Genre");
     if (attrs && attrs.length > 0) {
@@ -124,8 +168,13 @@ export class AsfTag extends Tag {
     }
     return "";
   }
+  /** @param value - New genre; sets the `WM/Genre` attribute. */
   set genre(value: string) { this.setAttribute("WM/Genre", AsfAttribute.fromString(value)); }
 
+  /**
+   * Release year, read from the `WM/Year` attribute.
+   * Returns `0` when not present.
+   */
   get year(): number {
     const attrs = this._attributeListMap.get("WM/Year");
     if (attrs && attrs.length > 0) {
@@ -133,8 +182,13 @@ export class AsfTag extends Tag {
     }
     return 0;
   }
+  /** @param value - New year; sets the `WM/Year` attribute. */
   set year(value: number) { this.setAttribute("WM/Year", AsfAttribute.fromString(String(value))); }
 
+  /**
+   * Track number, read from `WM/TrackNumber` (falling back to `WM/Track`).
+   * Returns `0` when not present.
+   */
   get track(): number {
     const attrs = this._attributeListMap.get("WM/TrackNumber");
     if (attrs && attrs.length > 0) {
@@ -146,38 +200,73 @@ export class AsfTag extends Tag {
     if (trackAttrs && trackAttrs.length > 0) return trackAttrs[0].toUInt();
     return 0;
   }
+  /** @param value - New track number; sets the `WM/TrackNumber` attribute. */
   set track(value: number) { this.setAttribute("WM/TrackNumber", AsfAttribute.fromString(String(value))); }
 
   // -- ASF-specific --
 
+  /** Copyright notice (Content Description Object). */
   get copyright(): string { return this._copyright; }
+  /** @param value - New copyright string. */
   set copyright(value: string) { this._copyright = value; }
 
+  /** Content rating (Content Description Object). */
   get rating(): string { return this._rating; }
+  /** @param value - New rating string. */
   set rating(value: string) { this._rating = value; }
 
+  /** The full map of all ASF attributes, keyed by attribute name. */
   get attributeListMap(): Map<string, AsfAttribute[]> { return this._attributeListMap; }
 
+  /**
+   * Return `true` if `key` has at least one attribute in the map.
+   * @param key - ASF attribute name.
+   */
   contains(key: string): boolean {
     return this._attributeListMap.has(key);
   }
 
+  /**
+   * Remove all attributes stored under `key`.
+   * @param key - ASF attribute name.
+   */
   removeItem(key: string): void {
     this._attributeListMap.delete(key);
   }
 
+  /**
+   * Return the list of attributes stored under `name`, or `[]` when absent.
+   * @param name - ASF attribute name.
+   */
   attribute(name: string): AsfAttribute[] {
     return this._attributeListMap.get(name) ?? [];
   }
 
+  /**
+   * Replace all attributes for `name` with a single `attribute`.
+   * @param name - ASF attribute name.
+   * @param attribute - The attribute to store.
+   */
   setAttribute(name: string, attribute: AsfAttribute): void {
     this._attributeListMap.set(name, [attribute]);
   }
 
+  /**
+   * Replace all attributes for `name` with the given list.
+   * @param name - ASF attribute name.
+   * @param values - The attribute list to store.
+   */
   setAttributeList(name: string, values: AsfAttribute[]): void {
     this._attributeListMap.set(name, values);
   }
 
+  /**
+   * Append `attribute` to the list stored under `name`, creating the entry if
+   * it doesn't exist.
+   *
+   * @param name - ASF attribute name.
+   * @param attribute - The attribute to append.
+   */
   addAttribute(name: string, attribute: AsfAttribute): void {
     const existing = this._attributeListMap.get(name);
     if (existing) {

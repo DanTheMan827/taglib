@@ -1,3 +1,4 @@
+/** @file ProTracker MOD file format handler. */
 import { ByteVector, StringType } from "../byteVector.js";
 import { File } from "../file.js";
 import { Tag } from "../tag.js";
@@ -23,15 +24,29 @@ function readString(data: ByteVector, maxLen: number): string {
  * Instrument names (22 bytes each, starting at offset 20) form the comment.
  */
 export class ModFile extends File {
+  /** Parsed tag holding title and instrument names as a comment. */
   private _tag: ModTag;
+  /** Parsed audio properties, or `null` if not yet read. */
   private _properties: ModProperties | null = null;
+  /** Number of instruments in the file (15 for NoiseTracker, 31 otherwise). */
   private _instrumentCount: number = 31;
 
+  /**
+   * Private constructor — use {@link ModFile.open} instead.
+   * @param stream - The underlying I/O stream.
+   */
   private constructor(stream: IOStream) {
     super(stream);
     this._tag = new ModTag();
   }
 
+  /**
+   * Open and parse a ProTracker MOD file.
+   * @param stream - The I/O stream to read from.
+   * @param readProperties - Whether to parse audio properties.
+   * @param readStyle - Detail level for audio property parsing.
+   * @returns A fully initialized {@link ModFile} instance.
+   */
   static async open(
     stream: IOStream,
     readProperties: boolean = true,
@@ -48,6 +63,11 @@ export class ModFile extends File {
   // Static
   // ---------------------------------------------------------------------------
 
+  /**
+   * Check whether a stream contains a known ProTracker MOD file.
+   * @param stream - The stream to inspect.
+   * @returns `true` if the 4-byte MOD ID at offset 1080 is a known identifier.
+   */
   static async isSupported(stream: IOStream): Promise<boolean> {
     if (await stream.length() < 1084) return false;
     await stream.seek(1080);
@@ -61,14 +81,20 @@ export class ModFile extends File {
   // File interface
   // ---------------------------------------------------------------------------
 
+  /** Returns the tag for this file. */
   tag(): Tag {
     return this._tag;
   }
 
+  /** Returns the audio properties, or `null` if not parsed. */
   audioProperties(): ModProperties | null {
     return this._properties;
   }
 
+  /**
+   * Write the current tag data back to the file.
+   * @returns `true` on success, `false` if the file is read-only.
+   */
   async save(): Promise<boolean> {
     if (this.readOnly) return false;
 
@@ -94,6 +120,11 @@ export class ModFile extends File {
   // Private – reading
   // ---------------------------------------------------------------------------
 
+  /**
+   * Parse the MOD file header, ID tag, and instrument names.
+   * @param readProperties - Whether to populate audio properties.
+   * @param readStyle - Detail level for audio property parsing.
+   */
   private async read(readProperties: boolean, readStyle: ReadStyle): Promise<void> {
     if ((await this.fileLength()) < 1084) {
       this._valid = false;
@@ -184,6 +215,11 @@ export class ModFile extends File {
 // Helpers
 // =============================================================================
 
+/**
+ * Determine whether a 4-byte MOD identifier is a known ProTracker variant.
+ * @param id - The 4-character string read from offset 1080.
+ * @returns `true` if the ID is recognised.
+ */
 function isKnownModId(id: string): boolean {
   if (id === "M.K." || id === "M!K!" || id === "M&K!" || id === "N.T.") return true;
   if (id === "CD81" || id === "OKTA") return true;
@@ -203,6 +239,12 @@ function isKnownModId(id: string): boolean {
   return false;
 }
 
+/**
+ * Encode a string as Latin1 bytes, zero-padded or truncated to `len` bytes.
+ * @param s - The string to encode.
+ * @param len - The exact byte length of the returned vector.
+ * @returns A `ByteVector` of exactly `len` bytes.
+ */
 function padString(s: string, len: number): ByteVector {
   const arr = new Uint8Array(len);
   for (let i = 0; i < len; i++) {

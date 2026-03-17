@@ -1,3 +1,4 @@
+/** @file DSF (DSD Stream File) format handler. */
 import { ByteVector, StringType } from "../byteVector.js";
 import { File } from "../file.js";
 import { Tag } from "../tag.js";
@@ -20,16 +21,31 @@ import { DsfProperties } from "./dsfProperties.js";
  * Only an ID3v2 tag is supported (no ID3v1, no APE).
  */
 export class DsfFile extends File {
+  /** The ID3v2 tag, or `null` if not yet loaded. */
   private _tag: Id3v2Tag | null = null;
+  /** Parsed audio properties from the "fmt " chunk. */
   private _properties: DsfProperties | null = null;
 
+  /** Total file size in bytes as recorded in the DSD chunk header. */
   private _fileSize: number = 0;
+  /** File offset of the ID3v2 metadata chunk, or 0 if absent. */
   private _metadataOffset: number = 0;
 
+  /**
+   * Private constructor — use {@link DsfFile.open} to create instances.
+   * @param stream The underlying I/O stream.
+   */
   private constructor(stream: IOStream) {
     super(stream);
   }
 
+  /**
+   * Opens a DSF file and parses its metadata.
+   * @param stream The I/O stream to read from.
+   * @param readProperties Whether to parse audio properties (default `true`).
+   * @param readStyle Accuracy / speed trade-off for property reading.
+   * @returns A fully initialised {@link DsfFile} instance.
+   */
   static async open(
     stream: IOStream,
     readProperties: boolean = true,
@@ -60,14 +76,26 @@ export class DsfFile extends File {
   // File interface
   // ---------------------------------------------------------------------------
 
+  /**
+   * Returns the ID3v2 tag for this file, or `null` if none exists.
+   * @returns The {@link Id3v2Tag} or `null`.
+   */
   tag(): Tag | null {
     return this._tag;
   }
 
+  /**
+   * Returns the parsed audio properties, or `null` if properties were not read.
+   * @returns The {@link DsfProperties} or `null`.
+   */
   audioProperties(): DsfProperties | null {
     return this._properties;
   }
 
+  /**
+   * Writes all pending tag changes back to the underlying stream.
+   * @returns `true` on success, `false` if the file is read-only or has no tag.
+   */
   async save(): Promise<boolean> {
     if (this.readOnly) return false;
     if (!this._tag) return false;
@@ -135,6 +163,12 @@ export class DsfFile extends File {
   // Private – reading
   // ---------------------------------------------------------------------------
 
+  /**
+   * Reads and validates the DSF chunk structure from the stream, then populates
+   * audio properties and the ID3v2 tag.
+   * @param readProperties Whether to parse the "fmt " chunk as audio properties.
+   * @param readStyle Accuracy / speed trade-off hint.
+   */
   private async read(readProperties: boolean, readStyle: ReadStyle): Promise<void> {
     // DSD chunk
     await this.seek(0);

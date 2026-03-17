@@ -1,3 +1,4 @@
+/** @file FLAC audio properties parsed from the STREAMINFO metadata block. */
 import { AudioProperties } from "../audioProperties.js";
 import { ByteVector } from "../byteVector.js";
 import { ReadStyle } from "../toolkit/types.js";
@@ -11,14 +12,27 @@ import { ReadStyle } from "../toolkit/types.js";
  *   totalSamplesLow(4) + md5Signature(16)
  */
 export class FlacProperties extends AudioProperties {
+  /** Track duration in milliseconds. */
   private _lengthInMs: number = 0;
+  /** Approximate bitrate in kbit/s, derived from stream length and sample count. */
   private _bitrate: number = 0;
+  /** Sample rate in Hz. */
   private _sampleRate: number = 0;
+  /** Number of bits per sample. */
   private _bitsPerSample: number = 0;
+  /** Number of audio channels. */
   private _channels: number = 0;
+  /** Total number of inter-channel sample frames in the stream. */
   private _sampleFrames: bigint = 0n;
+  /** MD5 signature of the uncompressed audio data (16 bytes). */
   private _signature: ByteVector = new ByteVector();
 
+  /**
+   * Constructs FLAC audio properties from a STREAMINFO block.
+   * @param streamInfoData Raw bytes of the STREAMINFO block payload (at least 18 bytes).
+   * @param streamLength Total byte length of the audio stream (used to estimate bitrate).
+   * @param readStyle Read style hint (passed to the base class).
+   */
   constructor(
     streamInfoData: ByteVector,
     streamLength: number,
@@ -32,18 +46,22 @@ export class FlacProperties extends AudioProperties {
   // AudioProperties interface
   // ---------------------------------------------------------------------------
 
+  /** Track duration in milliseconds. */
   get lengthInMilliseconds(): number {
     return this._lengthInMs;
   }
 
+  /** Approximate bitrate in kbit/s. */
   override get bitrate(): number {
     return this._bitrate;
   }
 
+  /** Sample rate in Hz. */
   override get sampleRate(): number {
     return this._sampleRate;
   }
 
+  /** Number of audio channels. */
   get channels(): number {
     return this._channels;
   }
@@ -52,10 +70,12 @@ export class FlacProperties extends AudioProperties {
   // FLAC-specific
   // ---------------------------------------------------------------------------
 
+  /** Number of bits per sample. */
   get bitsPerSample(): number {
     return this._bitsPerSample;
   }
 
+  /** Total number of inter-channel sample frames in the stream. */
   get sampleFrames(): bigint {
     return this._sampleFrames;
   }
@@ -69,6 +89,11 @@ export class FlacProperties extends AudioProperties {
   // Private
   // ---------------------------------------------------------------------------
 
+  /**
+   * Parses the STREAMINFO block payload and populates all property fields.
+   * @param data Raw bytes of the STREAMINFO block (at least 18 bytes, big-endian).
+   * @param streamLength Total byte length of the audio stream, used to derive bitrate.
+   */
   private read(data: ByteVector, streamLength: number): void {
     if (data.length < 18) {
       return;

@@ -1,3 +1,4 @@
+/** @file Audio properties for MP4/M4A/AAC/ALAC files. */
 import { AudioProperties } from "../audioProperties.js";
 import { ByteVector, StringType } from "../byteVector.js";
 import type { IOStream } from "../toolkit/ioStream.js";

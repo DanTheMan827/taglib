@@ -1,3 +1,5 @@
+/** @file ASF attribute value type and {@link AsfAttribute} implementation. */
+
 import { ByteVector, StringType } from "../byteVector.js";
 import type { File } from "../file.js";
 import { AsfPicture } from "./asfPicture.js";
@@ -7,13 +9,21 @@ import { readWORD, readDWORD, readQWORD, readString, renderString } from "./asfU
 // AsfAttributeType
 // ---------------------------------------------------------------------------
 
+/** Discriminates the value type stored in an {@link AsfAttribute}. */
 export enum AsfAttributeType {
+  /** A null-terminated UTF-16LE string. */
   UnicodeType = 0,
+  /** Arbitrary binary data. */
   BytesType = 1,
+  /** Boolean flag, encoded as a WORD or DWORD depending on the object kind. */
   BoolType = 2,
+  /** Unsigned 32-bit integer. */
   DWordType = 3,
+  /** Unsigned 64-bit integer. */
   QWordType = 4,
+  /** Unsigned 16-bit integer. */
   WordType = 5,
+  /** 16-byte GUID value. */
   GuidType = 6,
 }
 
@@ -21,20 +31,38 @@ export enum AsfAttributeType {
 // AsfAttribute
 // ---------------------------------------------------------------------------
 
+/**
+ * Represents a single attribute value in an ASF tag.
+ *
+ * An attribute can be one of several typed values ({@link AsfAttributeType})
+ * and may be associated with a particular stream or language index when stored
+ * in the Metadata or Metadata Library objects.
+ */
 export class AsfAttribute {
+  /** Discriminator for the value stored in this attribute. */
   private _type: AsfAttributeType = AsfAttributeType.UnicodeType;
+  /** String payload (UnicodeType attributes). */
   private _stringValue = "";
+  /** Binary payload (BytesType / GuidType attributes). */
   private _byteVectorValue = new ByteVector();
+  /** Embedded picture payload (BytesType WM/Picture attributes). */
   private _pictureValue: AsfPicture = AsfPicture.fromInvalid();
+  /** Numeric payload, stored as BigInt for lossless 64-bit handling. */
   private _numericValue = 0n;
+  /** Stream number this attribute belongs to (Metadata / Metadata Library). */
   private _stream = 0;
+  /** Language list index this attribute belongs to (Metadata Library only). */
   private _language = 0;
 
   // -- Constructors (static factories) --
 
-  /** Empty Unicode attribute. */
+  /** Create an empty Unicode attribute. */
   constructor() {}
 
+  /**
+   * Create a Unicode string attribute.
+   * @param value - The string to store.
+   */
   static fromString(value: string): AsfAttribute {
     const a = new AsfAttribute();
     a._type = AsfAttributeType.UnicodeType;
@@ -42,6 +70,10 @@ export class AsfAttribute {
     return a;
   }
 
+  /**
+   * Create a binary byte-array attribute.
+   * @param value - The binary data to store.
+   */
   static fromByteVector(value: ByteVector): AsfAttribute {
     const a = new AsfAttribute();
     a._type = AsfAttributeType.BytesType;
@@ -49,6 +81,10 @@ export class AsfAttribute {
     return a;
   }
 
+  /**
+   * Create a BytesType attribute whose payload is the rendered form of `value`.
+   * @param value - The picture to embed.
+   */
   static fromPicture(value: AsfPicture): AsfAttribute {
     const a = new AsfAttribute();
     a._type = AsfAttributeType.BytesType;
@@ -56,6 +92,10 @@ export class AsfAttribute {
     return a;
   }
 
+  /**
+   * Create a DWord (unsigned 32-bit) attribute.
+   * @param value - Value in the range [0, 2³²−1].
+   */
   static fromUInt(value: number): AsfAttribute {
     const a = new AsfAttribute();
     a._type = AsfAttributeType.DWordType;
@@ -63,6 +103,10 @@ export class AsfAttribute {
     return a;
   }
 
+  /**
+   * Create a QWord (unsigned 64-bit) attribute.
+   * @param value - The BigInt value to store.
+   */
   static fromULongLong(value: bigint): AsfAttribute {
     const a = new AsfAttribute();
     a._type = AsfAttributeType.QWordType;
@@ -70,6 +114,10 @@ export class AsfAttribute {
     return a;
   }
 
+  /**
+   * Create a Word (unsigned 16-bit) attribute.
+   * @param value - Value in the range [0, 65535].
+   */
   static fromUShort(value: number): AsfAttribute {
     const a = new AsfAttribute();
     a._type = AsfAttributeType.WordType;
@@ -77,6 +125,10 @@ export class AsfAttribute {
     return a;
   }
 
+  /**
+   * Create a Bool attribute.
+   * @param value - The boolean value to store.
+   */
   static fromBool(value: boolean): AsfAttribute {
     const a = new AsfAttribute();
     a._type = AsfAttributeType.BoolType;
@@ -86,26 +138,41 @@ export class AsfAttribute {
 
   // -- Accessors --
 
+  /** The discriminated type of the value held by this attribute. */
   get type(): AsfAttributeType { return this._type; }
 
+  /** Returns the Unicode string value, or `""` for non-string attributes. */
   toString(): string { return this._stringValue; }
 
+  /**
+   * Returns the binary data value.
+   * For embedded pictures the rendered picture bytes are returned.
+   */
   toByteVector(): ByteVector {
     if (this._pictureValue.isValid) return this._pictureValue.render();
     return this._byteVectorValue;
   }
 
+  /** Returns `1` if the boolean value is true, otherwise `0`. */
   toBool(): number { return this._numericValue !== 0n ? 1 : 0; }
+  /** Returns the numeric value truncated to an unsigned 16-bit integer. */
   toUShort(): number { return Number(this._numericValue & 0xFFFFn); }
+  /** Returns the numeric value truncated to an unsigned 32-bit integer. */
   toUInt(): number { return Number(this._numericValue & 0xFFFFFFFFn); }
+  /** Returns the full unsigned 64-bit integer value as a BigInt. */
   toULongLong(): bigint { return this._numericValue; }
 
+  /** Returns the embedded picture value (may be invalid). */
   toPicture(): AsfPicture { return this._pictureValue; }
 
+  /** Language list index for Metadata Library objects; `0` for all others. */
   get language(): number { return this._language; }
+  /** @param value - Language list index. */
   set language(value: number) { this._language = value; }
 
+  /** Stream number for Metadata / Metadata Library objects; `0` for Extended Content Description. */
   get stream(): number { return this._stream; }
+  /** @param value - Stream number. */
   set stream(value: number) { this._stream = value; }
 
   // -- Parsing --
@@ -185,6 +252,10 @@ export class AsfAttribute {
 
   // -- Data size --
 
+  /**
+   * Size in bytes of the encoded value, **excluding** the attribute header
+   * (name, type, and length fields).
+   */
   get dataSize(): number {
     switch (this._type) {
       case AsfAttributeType.WordType: return 2;
@@ -204,6 +275,14 @@ export class AsfAttribute {
 
   // -- Rendering --
 
+  /**
+   * Serialize this attribute to bytes for inclusion in an ASF file.
+   *
+   * @param name - The attribute name to write.
+   * @param kind - Object kind: `0` = Extended Content Descriptor,
+   *   `1` = Metadata, `2` = Metadata Library.
+   * @returns The serialized bytes.
+   */
   render(name: string, kind = 0): ByteVector {
     let data = new ByteVector();
 

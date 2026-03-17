@@ -1,3 +1,5 @@
+/** @file APEv2 tag implementation, including item, footer, and tag classes. */
+
 import { ByteVector, StringType } from "../byteVector.js";
 import { Tag } from "../tag.js";
 import { PropertyMap } from "../toolkit/propertyMap.js";
@@ -9,9 +11,13 @@ import { Position } from "../toolkit/types.js";
 // ApeItemType
 // =============================================================================
 
+/** Value type for an APE tag item. */
 export enum ApeItemType {
+  /** Item contains one or more UTF-8 text strings separated by null bytes. */
   Text = 0,
+  /** Item contains raw binary data. */
   Binary = 1,
+  /** Item contains a URI locator string. */
   Locator = 2,
 }
 
@@ -26,10 +32,15 @@ export enum ApeItemType {
  *   valueLength(4 LE) + flags(4 LE) + key(null-terminated ASCII) + value
  */
 export class ApeItem {
+  /** Case-sensitive ASCII key identifying this item. */
   key: string = "";
+  /** Decoded text values (for Text/Locator items). */
   values: string[] = [];
+  /** Data type of this item's value. */
   type: ApeItemType = ApeItemType.Text;
+  /** Whether this item is marked read-only in the tag. */
   readOnly: boolean = false;
+  /** Raw binary payload (for Binary items). */
   binaryData: ByteVector = new ByteVector();
 
   /**
@@ -100,6 +111,7 @@ export class ApeItem {
     return result;
   }
 
+  /** Returns a human-readable representation of this item's value. */
   toString(): string {
     if (this.type === ApeItemType.Binary) {
       return `[binary data, ${this.binaryData.length} bytes]`;
@@ -120,9 +132,13 @@ export class ApeItem {
  *   itemCount(4 LE) + flags(4 LE) + reserved(8 zeros)
  */
 export class ApeFooter {
+  /** APEv2 format version (e.g. 2000 for APEv2). */
   version: number = 2000;
+  /** Size in bytes of the tag data, including the footer but excluding the header. */
   tagSize: number = 0;
+  /** Number of items stored in this tag. */
   itemCount: number = 0;
+  /** Bit-field of tag flags (header presence, read-only, etc.). */
   flags: number = 0;
 
   static readonly SIZE = 32;
@@ -131,10 +147,12 @@ export class ApeFooter {
     StringType.Latin1,
   );
 
+  /** `true` if this 32-byte block represents a header rather than a footer. */
   get isHeader(): boolean {
     return (this.flags & 0x20000000) !== 0;
   }
 
+  /** `true` if a 32-byte header precedes the tag items in the stream. */
   get hasHeader(): boolean {
     return (this.flags & 0x80000000) !== 0;
   }
@@ -177,6 +195,12 @@ export class ApeFooter {
     return this.renderBlock(headerFlags);
   }
 
+  /**
+   * Render this footer/header block with the given flag overrides.
+   *
+   * @param flagsValue - The flags field to encode in the output block.
+   * @returns A 32-byte `ByteVector`.
+   */
   private renderBlock(flagsValue: number): ByteVector {
     const result = new ByteVector();
     result.append(ApeFooter.FILE_IDENTIFIER);
@@ -193,6 +217,7 @@ export class ApeFooter {
 // APE key ↔ property name mapping
 // =============================================================================
 
+/** Mapping from upper-cased APE item keys to standard property names. */
 const APE_TO_PROPERTY: ReadonlyMap<string, string> = new Map([
   ["TITLE", "TITLE"],
   ["ARTIST", "ARTIST"],
@@ -217,6 +242,7 @@ const APE_TO_PROPERTY: ReadonlyMap<string, string> = new Map([
   ["ENCODER", "ENCODER"],
 ]);
 
+/** Mapping from standard property names back to preferred APE item keys. */
 const PROPERTY_TO_APE: ReadonlyMap<string, string> = new Map([
   ["TITLE", "TITLE"],
   ["ARTIST", "ARTIST"],
@@ -247,59 +273,86 @@ const PROPERTY_TO_APE: ReadonlyMap<string, string> = new Map([
  * APE (APEv2) tag implementation.
  */
 export class ApeTag extends Tag {
+  /** Internal list of all APE items in tag order. */
   private _items: ApeItem[] = [];
 
   // ---------------------------------------------------------------------------
   // Tag abstract property implementations
   // ---------------------------------------------------------------------------
 
+  /** Track title stored in the "TITLE" item. */
   get title(): string {
     return this.textValue("TITLE");
   }
+  /** @param v - New title string; empty string removes the item. */
   set title(v: string) {
     this.setTextValue("TITLE", v);
   }
 
+  /** Lead artist/performer stored in the "ARTIST" item. */
   get artist(): string {
     return this.textValue("ARTIST");
   }
+  /** @param v - New artist string; empty string removes the item. */
   set artist(v: string) {
     this.setTextValue("ARTIST", v);
   }
 
+  /** Album title stored in the "ALBUM" item. */
   get album(): string {
     return this.textValue("ALBUM");
   }
+  /** @param v - New album string; empty string removes the item. */
   set album(v: string) {
     this.setTextValue("ALBUM", v);
   }
 
+  /** User comment stored in the "COMMENT" item. */
   get comment(): string {
     return this.textValue("COMMENT");
   }
+  /** @param v - New comment string; empty string removes the item. */
   set comment(v: string) {
     this.setTextValue("COMMENT", v);
   }
 
+  /** Genre stored in the "GENRE" item. */
   get genre(): string {
     return this.textValue("GENRE");
   }
+  /** @param v - New genre string; empty string removes the item. */
   set genre(v: string) {
     this.setTextValue("GENRE", v);
   }
 
+  /**
+   * Release year, read from the "YEAR" item (falling back to "DATE").
+   * Returns `0` when not set.
+   */
   get year(): number {
     const s = this.textValue("YEAR") || this.textValue("DATE");
     return parseInt(s, 10) || 0;
   }
+  /**
+   * @param v - Four-digit year, or `0` to remove the item.
+   * Any pre-existing "DATE" alias item is also removed.
+   */
   set year(v: number) {
     this.setTextValueExclusive("YEAR", v > 0 ? String(v) : "", "DATE");
   }
 
+  /**
+   * Track number, read from the "TRACK" item (falling back to "TRACKNUMBER").
+   * Returns `0` when not set.
+   */
   get track(): number {
     const s = this.textValue("TRACK") || this.textValue("TRACKNUMBER");
     return parseInt(s, 10) || 0;
   }
+  /**
+   * @param v - Track number, or `0` to remove the item.
+   * Any pre-existing "TRACKNUMBER" alias item is also removed.
+   */
   set track(v: number) {
     this.setTextValueExclusive("TRACK", v > 0 ? String(v) : "", "TRACKNUMBER");
   }
@@ -316,6 +369,11 @@ export class ApeTag extends Tag {
   /**
    * Asynchronously read an APE tag from the given stream. `offset` points to
    * the start of the 32-byte footer. Returns a `Promise<ApeTag>`.
+   *
+   * @param stream - The stream to read from.
+   * @param offset - Byte offset of the 32-byte APE footer within `stream`.
+   * @returns A resolved promise containing the populated tag (may be empty on
+   *   parse failure).
    */
   static async readFrom(stream: IOStream, offset: offset_t): Promise<ApeTag> {
     const tag = new ApeTag();
@@ -349,6 +407,7 @@ export class ApeTag extends Tag {
   // Item access
   // ---------------------------------------------------------------------------
 
+  /** A shallow copy of all items in this tag. */
   get items(): ApeItem[] {
     return [...this._items];
   }
@@ -462,6 +521,12 @@ export class ApeTag extends Tag {
   // Helpers
   // ---------------------------------------------------------------------------
 
+  /**
+   * Return the first text value for `key`, or `""` when not present or not a
+   * Text-type item.
+   *
+   * @param key - Upper-cased APE item key.
+   */
   private textValue(key: string): string {
     const it = this.item(key);
     if (!it || it.type !== ApeItemType.Text || it.values.length === 0) {
@@ -470,6 +535,12 @@ export class ApeTag extends Tag {
     return it.values[0];
   }
 
+  /**
+   * Set `key` to a single text value, or remove the item when `value` is `""`.
+   *
+   * @param key - Upper-cased APE item key.
+   * @param value - Value to store, or `""` to remove.
+   */
   private setTextValue(key: string, value: string): void {
     if (value === "") {
       this.removeItem(key);

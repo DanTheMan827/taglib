@@ -1,3 +1,4 @@
+/** @file FLAC picture metadata block — parsing and rendering. */
 import { ByteVector, StringType } from "../byteVector.js";
 
 /**
@@ -10,17 +11,27 @@ import { ByteVector, StringType } from "../byteVector.js";
  *   dataLength(4) + data
  */
 export class FlacPicture {
+  /** Picture type code as defined by the ID3v2 APIC frame (e.g. 3 = cover art). */
   pictureType: number = 0;
+  /** MIME type string (e.g. `"image/jpeg"`). */
   mimeType: string = "";
+  /** UTF-8 description of the picture. */
   description: string = "";
+  /** Image width in pixels. */
   width: number = 0;
+  /** Image height in pixels. */
   height: number = 0;
+  /** Colour depth (bits per pixel). */
   colorDepth: number = 0;
+  /** Number of colours for indexed images, or 0 for non-indexed formats. */
   numColors: number = 0;
+  /** Raw binary image data. */
   data: ByteVector = new ByteVector();
 
   /**
    * Parse a FLAC picture block from raw bytes.
+   * @param data The raw picture block payload (big-endian integers).
+   * @returns A {@link FlacPicture} populated from the data, or a default instance if the data is too short.
    */
   static parse(data: ByteVector): FlacPicture {
     const pic = new FlacPicture();
@@ -69,6 +80,7 @@ export class FlacPicture {
 
   /**
    * Render the picture block back to bytes (big-endian).
+   * @returns A {@link ByteVector} containing the serialised picture block payload.
    */
   render(): ByteVector {
     const mimeBytes = ByteVector.fromString(this.mimeType, StringType.UTF8);
