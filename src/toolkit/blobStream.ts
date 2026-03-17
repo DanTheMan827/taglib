@@ -1,13 +1,21 @@
 /**
  * @file Read/write IOStream backed by a `Blob` or `File` object.
  *
- * Reads are performed lazily via `blob.slice().arrayBuffer()` so the original
- * blob is never fully loaded into memory.  Writes are captured in a
- * **piece table** — a list of segments that are either a byte-range reference
- * into the original blob or a small in-memory `Uint8Array` buffer.  The full
- * modified content can be assembled without a memory copy by calling
- * {@link BlobStream.toBlob}, which passes blob-slice references and in-memory
- * buffers directly to the `Blob` constructor.
+ * Reads are performed lazily — each `BlobSegment` is fetched from the blob on
+ * first access and the result is **cached on the segment**, so subsequent reads
+ * of the same range are purely in-memory with no async overhead.  When a
+ * `readBlock` call spans multiple uncached segments, all outstanding
+ * `arrayBuffer()` calls are issued in **parallel** via `Promise.all`,
+ * minimising round-trips.
+ *
+ * Writes are captured in a **piece table** — a list of segments that are
+ * either a byte-range reference into the original blob (`BlobSegment`) or a
+ * small in-memory `Uint8Array` buffer (`BufferSegment`).  The total logical
+ * length is maintained as a cached field so that `length()` and most seeks are
+ * O(1).
+ *
+ * The modified content can be assembled as a new `Blob` (preserving the
+ * source MIME type) via {@link BlobStream.toBlob}.
  */
 
 import { ByteVector } from "../byteVector.js";
@@ -20,7 +28,10 @@ import { IOStream } from "./ioStream.js";
 
 /**
  * A segment that references a byte range inside the original source blob.
- * The range `[start, end)` uses the same indices as `Blob.slice()`.
+ *
+ * Once the range has been read, the raw bytes are stored in {@link cache} so
+ * that future reads of overlapping ranges are served from memory without
+ * issuing another `arrayBuffer()` call.
  */
 interface BlobSegment {
   /** Discriminant tag. */
@@ -29,6 +40,11 @@ interface BlobSegment {
   start: number;
   /** Exclusive end offset within the source blob. */
   end: number;
+  /**
+   * Populated on first fetch.  Once set, reads from this segment are
+   * in-memory and require no async I/O.
+   */
+  cache?: Uint8Array;
 }
 
 /**
@@ -62,50 +78,62 @@ function segmentLength(seg: Segment): number {
  * A read/write {@link IOStream} backed by a browser/Node.js `Blob` (or
  * `File`).
  *
- * **Reading** is lazy: {@link readBlock} only fetches the specific byte range
- * needed via `blob.slice().arrayBuffer()`.  The full blob is never loaded into
- * memory simultaneously.
+ * ### Reading
+ * Each `BlobSegment` is fetched from the blob on first access and its bytes
+ * are cached on the segment object.  Subsequent reads of the same range are
+ * served from the cache without any async I/O.  When a single `readBlock`
+ * call spans multiple uncached segments, all `arrayBuffer()` requests are
+ * issued in parallel via `Promise.all`.
  *
- * **Writing** uses a *piece table*: the logical content is modelled as an
- * ordered list of {@link Segment}s — each one is either a reference to a byte
- * range of the original blob (`BlobSegment`) or a small in-memory buffer
- * (`BufferSegment`).  Mutations ({@link writeBlock}, {@link insert},
- * {@link removeBlock}, {@link truncate}) only manipulate this list; they never
- * copy the original blob.
+ * ### Writing
+ * A *piece table* tracks the logical content as an ordered list of
+ * {@link Segment}s.  Mutations only manipulate this list; they never copy the
+ * original blob.  The cached total length is kept up-to-date on every
+ * mutation so that `length()` is O(1).
  *
- * **Exporting** the modified content as a new `Blob` is done via
- * {@link toBlob}, which passes blob-slice and buffer references directly to
- * the `Blob` constructor — again without a full-file memory copy.  The new
- * blob inherits the MIME type of the source blob.
+ * ### Exporting
+ * {@link toBlob} assembles a new `Blob` from `blob.slice()` references and
+ * in-memory buffers — no full-file copy.  The new blob's MIME type is copied
+ * from the source blob.
  */
 export class BlobStream extends IOStream {
   /** The original, unmodified source blob. */
   private readonly _blob: Blob;
 
-  /** The MIME type captured from the source blob at construction time. */
+  /** MIME type captured from the source blob at construction time. */
   private readonly _mimeType: string;
 
   /** Current read/write position in bytes from the logical start. */
   private _position: offset_t = 0;
 
-  /**
-   * The piece table — ordered list of segments that, concatenated, form the
-   * current logical content of the stream.
-   */
+  /** The piece table — ordered list of segments forming the logical content. */
   private _segments: Segment[];
 
   /**
-   * Creates a new BlobStream wrapping the given `Blob` or `File`.
+   * Cached total logical length in bytes.  Maintained by every mutating
+   * operation so that {@link length} and range-checks are O(1).
+   */
+  private _length: number;
+
+  /**
+   * Creates a new `BlobStream` wrapping the given `Blob` or `File`.
    *
-   * @param blob - The blob (or file) to stream.  Its contents are never
-   *   copied in their entirety; only individual byte ranges are fetched on
-   *   demand.
+   * The blob's contents are **not** loaded into memory at construction time.
+   * Each byte range is fetched on demand and cached for subsequent access.
+   *
+   * @param blob - The blob (or `File`) to stream.
    */
   constructor(blob: Blob) {
     super();
     this._blob = blob;
     this._mimeType = blob.type;
-    this._segments = blob.size > 0 ? [{ kind: "blob", start: 0, end: blob.size }] : [];
+    if (blob.size > 0) {
+      this._segments = [{ kind: "blob", start: 0, end: blob.size }];
+      this._length = blob.size;
+    } else {
+      this._segments = [];
+      this._length = 0;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -121,8 +149,9 @@ export class BlobStream extends IOStream {
 
   /**
    * Reads up to `length` bytes from the current position, spanning segment
-   * boundaries as needed, and advances the position by the number of bytes
-   * actually read.
+   * boundaries as needed.  All uncached `BlobSegment`s in the range are
+   * fetched in parallel via `Promise.all` and their results are cached on the
+   * segment for future reads.
    *
    * @param length - Maximum number of bytes to read.
    * @returns Resolves with a {@link ByteVector} containing the bytes read.
@@ -131,12 +160,26 @@ export class BlobStream extends IOStream {
   async readBlock(length: number): Promise<ByteVector> {
     if (length <= 0) return new ByteVector();
 
-    const total = this._totalLength();
-    const available = Math.max(0, total - this._position);
+    const available = Math.max(0, this._length - this._position);
     if (available <= 0) return new ByteVector();
 
     const toRead = Math.min(length, available);
-    const chunks: Uint8Array[] = [];
+
+    /**
+     * Two-pass approach:
+     *   Pass 1 — walk segments, collect uncached BlobSegments to fetch.
+     *   Pass 2 — after `Promise.all`, assemble the result from all segments.
+     */
+
+    /** Describes a single region of `toRead` bytes that needs to be assembled. */
+    type Part =
+      | { kind: "cached"; data: Uint8Array }
+      | { kind: "fetch"; fetchIdx: number; startInSeg: number; take: number };
+
+    const parts: Part[] = [];
+    /** BlobSegments that need to be fetched (no cache yet). */
+    const fetchSegs: BlobSegment[] = [];
+
     let remaining = toRead;
     let cursor = 0;
 
@@ -154,16 +197,41 @@ export class BlobStream extends IOStream {
       const take = Math.min(segLen - startInSeg, remaining);
 
       if (seg.kind === "blob") {
-        const buf = await this._blob
-          .slice(seg.start + startInSeg, seg.start + startInSeg + take)
-          .arrayBuffer();
-        chunks.push(new Uint8Array(buf));
+        if (seg.cache) {
+          // Already fetched — slice the cached buffer directly.
+          parts.push({ kind: "cached", data: seg.cache.subarray(startInSeg, startInSeg + take) });
+        } else {
+          const fetchIdx = fetchSegs.length;
+          fetchSegs.push(seg);
+          parts.push({ kind: "fetch", fetchIdx, startInSeg, take });
+        }
       } else {
-        chunks.push(seg.data.subarray(startInSeg, startInSeg + take));
+        parts.push({ kind: "cached", data: seg.data.subarray(startInSeg, startInSeg + take) });
       }
 
       remaining -= take;
       cursor = segEnd;
+    }
+
+    // Fetch all uncached BlobSegments in parallel.
+    if (fetchSegs.length > 0) {
+      const arrayBuffers = await Promise.all(
+        fetchSegs.map(s => this._blob.slice(s.start, s.end).arrayBuffer()),
+      );
+      for (let i = 0; i < fetchSegs.length; i++) {
+        fetchSegs[i].cache = new Uint8Array(arrayBuffers[i]);
+      }
+    }
+
+    // Assemble the result from cached and freshly-fetched data.
+    const chunks: Uint8Array[] = [];
+    for (const part of parts) {
+      if (part.kind === "cached") {
+        chunks.push(part.data);
+      } else {
+        const cache = fetchSegs[part.fetchIdx].cache!;
+        chunks.push(cache.subarray(part.startInSeg, part.startInSeg + part.take));
+      }
     }
 
     this._position += toRead - remaining;
@@ -179,21 +247,26 @@ export class BlobStream extends IOStream {
    */
   async writeBlock(data: ByteVector): Promise<void> {
     if (data.length === 0) return;
-    const bytes = data.data;
-    const total = this._totalLength();
+    // Defensive copy — prevents aliasing if the caller writes the same
+    // ByteVector instance multiple times (the piece table stores the raw buffer
+    // directly, so a shared reference would corrupt earlier segments).
+    const bytes = data.data.slice();
 
-    // Zero-pad if writing past the current end
-    if (this._position > total) {
-      this._segments.push({ kind: "buffer", data: new Uint8Array(this._position - total) });
+    // Zero-pad if writing past the current end.
+    if (this._position > this._length) {
+      const pad = new Uint8Array(this._position - this._length);
+      this._segments.push({ kind: "buffer", data: pad });
+      this._length += pad.length;
     }
 
-    // Remove bytes being overwritten
-    const overwriteLen = Math.min(bytes.length, Math.max(0, this._totalLength() - this._position));
+    // Remove bytes that are being overwritten.
+    const overwriteLen = Math.min(bytes.length, Math.max(0, this._length - this._position));
     if (overwriteLen > 0) {
       this._removeRange(this._position, overwriteLen);
     }
 
     this._insertAt(this._position, { kind: "buffer", data: bytes });
+    this._length += bytes.length - overwriteLen;
     this._position += bytes.length;
   }
 
@@ -206,11 +279,20 @@ export class BlobStream extends IOStream {
    * @param replace - Number of existing bytes to replace. Defaults to `0`.
    */
   async insert(data: ByteVector, start: offset_t, replace: number = 0): Promise<void> {
-    if (replace > 0) {
-      this._removeRange(start, replace);
+    const actualReplace = Math.min(replace, Math.max(0, this._length - start));
+    if (actualReplace > 0) {
+      this._removeRange(start, actualReplace);
+      this._length -= actualReplace;
     }
     if (data.length > 0) {
-      this._insertAt(start, { kind: "buffer", data: data.data });
+      this._insertAt(start, {
+        kind: "buffer",
+        // Defensive copy — same aliasing risk as in writeBlock: the piece table
+        // holds the buffer directly, so a shared reference would corrupt stored
+        // segments if the same ByteVector is inserted again later.
+        data: data.data.slice(),
+      });
+      this._length += data.length;
     }
     this._position = start + data.length;
   }
@@ -223,13 +305,16 @@ export class BlobStream extends IOStream {
    */
   async removeBlock(start: offset_t, length: number): Promise<void> {
     if (length <= 0) return;
-    this._removeRange(start, length);
+    const actual = Math.min(length, Math.max(0, this._length - start));
+    if (actual <= 0) return;
+    this._removeRange(start, actual);
+    this._length -= actual;
 
-    // Adjust cursor
-    if (this._position > start && this._position < start + length) {
+    // Adjust cursor.
+    if (this._position > start && this._position < start + actual) {
       this._position = start;
-    } else if (this._position >= start + length) {
-      this._position -= length;
+    } else if (this._position >= start + actual) {
+      this._position -= actual;
     }
   }
 
@@ -251,7 +336,6 @@ export class BlobStream extends IOStream {
    *   {@link Position.Beginning}.
    */
   async seek(offset: offset_t, position: Position = Position.Beginning): Promise<void> {
-    const total = this._totalLength();
     switch (position) {
       case Position.Beginning:
         this._position = Math.max(0, offset);
@@ -260,7 +344,7 @@ export class BlobStream extends IOStream {
         this._position = Math.max(0, this._position + offset);
         break;
       case Position.End:
-        this._position = Math.max(0, total + offset);
+        this._position = Math.max(0, this._length + offset);
         break;
     }
   }
@@ -275,24 +359,28 @@ export class BlobStream extends IOStream {
     return this._position;
   }
 
-  /** Returns the total logical length of the stream in bytes. */
+  /**
+   * Returns the total logical byte length of the stream in O(1) time.
+   */
   async length(): Promise<offset_t> {
-    return this._totalLength();
+    return this._length;
   }
 
   /**
    * Truncates or zero-extends the stream to exactly `length` bytes.  If the
-   * current position exceeds the new length it is clamped to the new length.
+   * current position exceeds the new length it is clamped.
    *
    * @param length - The desired stream length in bytes.
    */
   async truncate(length: offset_t): Promise<void> {
-    const total = this._totalLength();
-    if (length < total) {
-      this._removeRange(length, total - length);
+    if (length < this._length) {
+      this._removeRange(length, this._length - length);
+      this._length = length;
       if (this._position > length) this._position = length;
-    } else if (length > total) {
-      this._segments.push({ kind: "buffer", data: new Uint8Array(length - total) });
+    } else if (length > this._length) {
+      const pad = new Uint8Array(length - this._length);
+      this._segments.push({ kind: "buffer", data: pad });
+      this._length = length;
     }
   }
 
@@ -302,9 +390,9 @@ export class BlobStream extends IOStream {
 
   /**
    * Assembles a new `Blob` from the current piece table without loading the
-   * full content into memory.  Each {@link BlobSegment} becomes a `blob.slice`
-   * reference and each {@link BufferSegment} is passed as a raw `Uint8Array`.
-   * The new blob's MIME type is copied from the source blob.
+   * full content into memory.  Each {@link BlobSegment} becomes a
+   * `blob.slice()` reference and each {@link BufferSegment} is passed as a raw
+   * `Uint8Array`.  The new blob's MIME type is copied from the source blob.
    *
    * @returns A new `Blob` reflecting all edits made to this stream.
    */
@@ -312,7 +400,8 @@ export class BlobStream extends IOStream {
     const parts: BlobPart[] = [];
     for (const seg of this._segments) {
       if (seg.kind === "blob") {
-        parts.push(this._blob.slice(seg.start, seg.end));
+        // Prefer the cached Uint8Array when available — avoids a new slice.
+        parts.push((seg.cache ?? this._blob.slice(seg.start, seg.end)) as BlobPart);
       } else {
         parts.push(seg.data as unknown as BlobPart);
       }
@@ -325,16 +414,12 @@ export class BlobStream extends IOStream {
   // ---------------------------------------------------------------------------
 
   /**
-   * Returns the sum of all segment lengths — the current logical stream size.
-   */
-  private _totalLength(): number {
-    return this._segments.reduce((sum, s) => sum + segmentLength(s), 0);
-  }
-
-  /**
    * Ensures there is a segment boundary at `offset` and returns the index of
    * the segment that starts at `offset`.  If `offset` falls in the middle of a
    * segment that segment is split into two.
+   *
+   * When splitting a {@link BlobSegment} that has a populated {@link BlobSegment.cache cache},
+   * the cache is sub-divided so neither child needs to re-fetch.
    *
    * @param offset - Byte offset at which a boundary is required.
    * @returns The segment index where the boundary now exists.
@@ -348,12 +433,19 @@ export class BlobStream extends IOStream {
         const splitPos = offset - cursor;
         const seg = this._segments[i];
         if (seg.kind === "blob") {
-          this._segments.splice(
-            i,
-            1,
-            { kind: "blob", start: seg.start, end: seg.start + splitPos },
-            { kind: "blob", start: seg.start + splitPos, end: seg.end },
-          );
+          const left: BlobSegment = {
+            kind: "blob",
+            start: seg.start,
+            end: seg.start + splitPos,
+            cache: seg.cache?.subarray(0, splitPos),
+          };
+          const right: BlobSegment = {
+            kind: "blob",
+            start: seg.start + splitPos,
+            end: seg.end,
+            cache: seg.cache?.subarray(splitPos),
+          };
+          this._segments.splice(i, 1, left, right);
         } else {
           this._segments.splice(
             i,
@@ -371,24 +463,24 @@ export class BlobStream extends IOStream {
 
   /**
    * Removes the logical byte range `[start, start + length)` from the piece
-   * table.  Segments that overlap either boundary are split first so that
-   * only whole segments need to be spliced out.
+   * table.  Segments that overlap either boundary are split first so that only
+   * whole segments need to be spliced out.
+   *
+   * **Note**: the caller is responsible for updating `_length`.
    *
    * @param start  - Logical start offset of the range to remove.
    * @param length - Number of bytes to remove.
    */
   private _removeRange(start: number, length: number): void {
-    if (length <= 0) return;
-    const total = this._totalLength();
-    if (start >= total) return;
-    const end = Math.min(start + length, total);
+    if (length <= 0 || start >= this._length) return;
+    const end = Math.min(start + length, this._length);
 
-    // Split at end first (does not affect segments before end's position)
+    // Split at end first (doesn't affect indices before end's position).
     this._splitAt(end);
-    // Then split at start — returns the index where start's boundary now lies
+    // Then split at start — returns index where start's boundary now sits.
     const startIdx = this._splitAt(start);
 
-    // Walk forward from startIdx to find the segment that begins at end
+    // Find the segment index that begins at `end`.
     let cursor = start;
     let endIdx = this._segments.length;
     for (let i = startIdx; i < this._segments.length; i++) {
@@ -405,6 +497,8 @@ export class BlobStream extends IOStream {
   /**
    * Inserts a new segment into the piece table at logical byte offset
    * `offset`, splitting any existing segment that spans `offset`.
+   *
+   * **Note**: the caller is responsible for updating `_length`.
    *
    * @param offset - Logical byte offset at which the new segment is inserted.
    * @param seg    - The segment to insert.

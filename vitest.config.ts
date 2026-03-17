@@ -5,4 +5,7 @@ export default defineConfig({
     include: ['src/tests/**/*.test.ts'],
     testTimeout: 30000,
   },
+  benchmark: {
+    include: ['src/benchmarks/**/*.bench.ts'],
+  },
 });
