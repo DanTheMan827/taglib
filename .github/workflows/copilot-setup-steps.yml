@@ -1,0 +1,64 @@
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # Checkout repository and all submodules recursively
+      - name: Checkout repository (recursive)
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          lfs: true  # only if you use Git LFS
+
+      # Setup Node.js (LTS)
+      - name: Setup Node.js (LTS)
+        uses: actions/setup-node@v6
+        with:
+          node-version: "lts/*"
+
+      # Cache Node modules
+      - name: Cache Node dependencies
+        uses: actions/cache@v4
+        id: npm-cache
+        with:
+          path: node_modules
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      # Install Node dependencies if cache missed
+      - name: Install Node dependencies
+        if: steps.npm-cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      # Setup Deno (latest stable)
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: "v2.x"
+          cache: true
+
+      # Pre-cache Deno dependencies if cache missed
+      - name: Install deno package imports
+        run: |
+          deno install || true
+
+      # Verify runtimes
+      - name: Verify runtimes
+        run: |
+          node -v
+          npm -v
+          deno --version
