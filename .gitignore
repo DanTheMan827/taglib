@@ -3,7 +3,7 @@
 !.github/**
 *~
 /CMakeCache.txt
-/doc/html
+/docs
 .cache
 .idea
 node_modules/
