@@ -126,9 +126,16 @@ examples/               ← TypeScript usage examples
 2. **FileRef** — format-agnostic handle with `tag()`, `save()`,
    `properties()`, `complexProperties()` etc.
 3. **Format-specific classes** — direct access to e.g. `MpegFile`, `FlacFile`,
-   `Mp4Tag` for advanced use
+   `Mp4Tag` for advanced use.
 
 ## TypeScript Configuration
 - `target: ES2022`, `module: NodeNext`
 - Strict mode enabled
 - Output to `dist/`
+
+## Documentation
+- The npm package name is `@dantheman827/taglib-ts`
+- All TypeScript files must have an `@file` comment describing the purpose of the file.
+- All classes, methods, properties, and variables must have tsdoc tags regardless of if they're public or not.
+- Examples must always be accurate to the current state of the code.
+- The AGENTS.md must remain current as changes are made to the project structure.
