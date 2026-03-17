@@ -5,7 +5,7 @@ import path from "path";
 
 export default [
   {
-    files: ["**/*.ts", "**/*.tsx"],
+    files: ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"],
 
     // Flat config language options
     languageOptions: {
