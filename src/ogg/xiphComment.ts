@@ -1,3 +1,5 @@
+/** @file Xiph/Vorbis comment tag implementation used by OGG-based formats (Vorbis, Opus, Speex, FLAC-in-OGG). */
+
 import { ByteVector, StringType } from "../byteVector.js";
 import { Tag } from "../tag.js";
 import { PropertyMap } from "../toolkit/propertyMap.js";
@@ -18,65 +20,99 @@ import { FlacPicture } from "../flac/flacPicture.js";
  *   for each: stringLength(4 LE) + "KEY=VALUE"(UTF-8)
  */
 export class XiphComment extends Tag {
+  /** The vendor identification string written by the encoder. */
   private _vendorId: string = "";
+  /** Map of uppercased field names to their ordered list of values. */
   private _fields: Map<string, string[]> = new Map();
 
   // ---------------------------------------------------------------------------
   // Tag abstract property implementations
   // ---------------------------------------------------------------------------
 
+  /** Track title stored in the "TITLE" field. */
   get title(): string {
     return this.firstFieldValue("TITLE");
   }
+  /** @param v - New title string; empty string removes the field. */
   set title(v: string) {
     this.addField("TITLE", v, true);
   }
 
+  /** Lead artist/performer stored in the "ARTIST" field. */
   get artist(): string {
     return this.firstFieldValue("ARTIST");
   }
+  /** @param v - New artist string; empty string removes the field. */
   set artist(v: string) {
     this.addField("ARTIST", v, true);
   }
 
+  /** Album title stored in the "ALBUM" field. */
   get album(): string {
     return this.firstFieldValue("ALBUM");
   }
+  /** @param v - New album string; empty string removes the field. */
   set album(v: string) {
     this.addField("ALBUM", v, true);
   }
 
+  /**
+   * User comment, read from "DESCRIPTION" (preferred) or "COMMENT" as a fallback.
+   * @returns The comment string, or `""` if neither field is set.
+   */
   get comment(): string {
     const desc = this.firstFieldValue("DESCRIPTION");
     return desc !== "" ? desc : this.firstFieldValue("COMMENT");
   }
+  /**
+   * Sets the comment in the "DESCRIPTION" field and removes any "COMMENT" alias.
+   * @param v - New comment string; empty string removes the field.
+   */
   set comment(v: string) {
     this.addField("DESCRIPTION", v, true);
     this.removeField("COMMENT");
   }
 
+  /** Genre stored in the "GENRE" field. */
   get genre(): string {
     return this.firstFieldValue("GENRE");
   }
+  /** @param v - New genre string; empty string removes the field. */
   set genre(v: string) {
     this.addField("GENRE", v, true);
   }
 
+  /**
+   * Release year, read from "DATE" (preferred) or "YEAR" as a fallback.
+   * Returns `0` when not set.
+   */
   get year(): number {
     const date = parseInt(this.firstFieldValue("DATE"), 10);
     if (date) return date;
     return parseInt(this.firstFieldValue("YEAR"), 10) || 0;
   }
+  /**
+   * Sets the year in the "DATE" field and removes any "YEAR" alias.
+   * @param v - Four-digit year, or `0` to remove the field.
+   */
   set year(v: number) {
     this.addField("DATE", v > 0 ? String(v) : "", true);
     this.removeField("YEAR");
   }
 
+  /**
+   * Track number, read from "TRACKNUMBER" (preferred) or "TRACKNUM" as a fallback.
+   * Returns `0` when not set.
+   */
   get track(): number {
     const tn = parseInt(this.firstFieldValue("TRACKNUMBER"), 10);
     if (tn) return tn;
     return parseInt(this.firstFieldValue("TRACKNUM"), 10) || 0;
   }
+  /**
+   * Sets the track number in "TRACKNUMBER" and removes any "TRACKNUM" alias.
+   * @param v - Track number, or `0` to remove the field.
+   */
   set track(v: number) {
     this.addField("TRACKNUMBER", v > 0 ? String(v) : "", true);
     this.removeField("TRACKNUM");
@@ -150,13 +186,16 @@ export class XiphComment extends Tag {
   // Vendor
   // ---------------------------------------------------------------------------
 
+  /** The vendor identification string embedded in the comment header. */
   get vendorId(): string {
     return this._vendorId;
   }
+  /** @param v - New vendor ID string. */
   set vendorId(v: string) {
     this._vendorId = v;
   }
 
+  /** Total number of individual field values across all keys. */
   get fieldCount(): number {
     let count = 0;
     for (const values of this._fields.values()) {
@@ -169,6 +208,10 @@ export class XiphComment extends Tag {
   // Field access
   // ---------------------------------------------------------------------------
 
+  /**
+   * Returns a shallow copy of the internal field map.
+   * @returns A new `Map` of uppercased field names to their value arrays.
+   */
   fieldListMap(): Map<string, string[]> {
     return new Map(this._fields);
   }
@@ -199,14 +242,24 @@ export class XiphComment extends Tag {
     }
   }
 
+  /**
+   * Remove all values for the specified field key.
+   * @param key - Field name (case-insensitive).
+   */
   removeField(key: string): void {
     this._fields.delete(key.toUpperCase());
   }
 
+  /** Remove all fields from this comment, leaving an empty tag. */
   removeAllFields(): void {
     this._fields.clear();
   }
 
+  /**
+   * Check whether a field with the given key is present.
+   * @param key - Field name (case-insensitive).
+   * @returns `true` if at least one value exists for `key`.
+   */
   contains(key: string): boolean {
     return this._fields.has(key.toUpperCase());
   }
@@ -215,6 +268,10 @@ export class XiphComment extends Tag {
   // Picture support (METADATA_BLOCK_PICTURE)
   // ---------------------------------------------------------------------------
 
+  /**
+   * Decode and return all embedded pictures from METADATA_BLOCK_PICTURE fields.
+   * @returns Array of {@link FlacPicture} objects decoded from Base64, or an empty array if none.
+   */
   pictureList(): FlacPicture[] {
     const pics: FlacPicture[] = [];
     const entries = this._fields.get("METADATA_BLOCK_PICTURE");
@@ -231,12 +288,20 @@ export class XiphComment extends Tag {
     return pics;
   }
 
+  /**
+   * Encode and append a picture to the METADATA_BLOCK_PICTURE field.
+   * @param picture - The {@link FlacPicture} to embed as Base64-encoded data.
+   */
   addPicture(picture: FlacPicture): void {
     const rendered = picture.render();
     const b64 = rendered.toBase64().toString(StringType.Latin1);
     this.addField("METADATA_BLOCK_PICTURE", b64, false);
   }
 
+  /**
+   * Remove a specific picture from the METADATA_BLOCK_PICTURE field.
+   * @param picture - The {@link FlacPicture} to remove (matched by rendered bytes).
+   */
   removePicture(picture: FlacPicture): void {
     const rendered = picture.render();
     const target = rendered.toBase64().toString(StringType.Latin1);
@@ -250,6 +315,7 @@ export class XiphComment extends Tag {
     }
   }
 
+  /** Remove all pictures by deleting the METADATA_BLOCK_PICTURE field entirely. */
   removeAllPictures(): void {
     this._fields.delete("METADATA_BLOCK_PICTURE");
   }
@@ -258,6 +324,10 @@ export class XiphComment extends Tag {
   // PropertyMap
   // ---------------------------------------------------------------------------
 
+  /**
+   * Build a {@link PropertyMap} from all fields, excluding METADATA_BLOCK_PICTURE.
+   * @returns A populated {@link PropertyMap} with all text fields.
+   */
   override properties(): PropertyMap {
     const map = new PropertyMap();
     for (const [key, values] of this._fields) {
@@ -267,6 +337,12 @@ export class XiphComment extends Tag {
     return map;
   }
 
+  /**
+   * Replace tag fields with the provided {@link PropertyMap}.
+   * METADATA_BLOCK_PICTURE keys are returned as unsupported.
+   * @param props - The properties to set.
+   * @returns A {@link PropertyMap} of unsupported properties.
+   */
   override setProperties(props: PropertyMap): PropertyMap {
     const unsupported = new PropertyMap();
 
@@ -295,6 +371,10 @@ export class XiphComment extends Tag {
   // Complex properties (pictures)
   // ---------------------------------------------------------------------------
 
+  /**
+   * Returns the list of complex property keys supported by this tag.
+   * @returns `["PICTURE"]` if any embedded pictures are present, otherwise `[]`.
+   */
   override complexPropertyKeys(): string[] {
     if (this._fields.has("METADATA_BLOCK_PICTURE")) {
       return ["PICTURE"];
@@ -302,6 +382,11 @@ export class XiphComment extends Tag {
     return [];
   }
 
+  /**
+   * Returns structured complex property data for the given key.
+   * @param key - The complex property key (only "PICTURE" is supported).
+   * @returns Array of variant maps describing each embedded picture, or `[]` for unknown keys.
+   */
   override complexProperties(key: string): VariantMap[] {
     if (key.toUpperCase() !== "PICTURE") return [];
 
@@ -321,6 +406,12 @@ export class XiphComment extends Tag {
     return result;
   }
 
+  /**
+   * Replaces all complex properties for the given key.
+   * @param key - The complex property key (only "PICTURE" is supported).
+   * @param value - Array of variant maps describing each picture to embed.
+   * @returns `true` if the key was handled, `false` otherwise.
+   */
   override setComplexProperties(key: string, value: VariantMap[]): boolean {
     if (key.toUpperCase() !== "PICTURE") return false;
 
@@ -405,6 +496,11 @@ export class XiphComment extends Tag {
   // Helpers
   // ---------------------------------------------------------------------------
 
+  /**
+   * Returns the first value for the given field key, or `""` if absent.
+   * @param key - Field name (case-insensitive).
+   * @returns The first value string, or `""` if the field is not set.
+   */
   private firstFieldValue(key: string): string {
     const values = this._fields.get(key.toUpperCase());
     return values && values.length > 0 ? values[0] : "";

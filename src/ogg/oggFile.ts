@@ -1,10 +1,12 @@
+/** @file Abstract base class for OGG container file formats. Handles page-level I/O and logical packet reassembly. */
+
 import { ByteVector } from "../byteVector.js";
 import { File } from "../file.js";
 import { IOStream } from "../toolkit/ioStream.js";
 import { Position } from "../toolkit/types.js";
 import { OggPageHeader } from "./oggPageHeader.js";
 
-// OGG CRC32 lookup table (polynomial 0x04C11DB7, same as used in libogg)
+/** OGG CRC-32 lookup table pre-computed with polynomial 0x04C11DB7 (same as libogg). */
 const OGG_CRC_TABLE = new Uint32Array(256);
 (() => {
   for (let i = 0; i < 256; i++) {
@@ -16,6 +18,11 @@ const OGG_CRC_TABLE = new Uint32Array(256);
   }
 })();
 
+/**
+ * Compute the OGG CRC-32 checksum over a raw byte array.
+ * @param data - The input bytes.
+ * @returns The 32-bit CRC checksum.
+ */
 function oggCrc32(data: Uint8Array): number {
   let crc = 0;
   for (let i = 0; i < data.length; i++) {
@@ -152,14 +159,25 @@ function adjustPageSequence(pageData: Uint8Array, newSeqNum: number): Uint8Array
  * output that is fully seekable and playable.
  */
 export abstract class OggFile extends File {
+  /** Parsed page headers, or `null` if pages have not yet been read from the stream. */
   private _pages: OggPageHeader[] | null = null;
+  /** Byte offset of each page within the stream, in page order. */
   private _pageOffsets: number[] = [];
+  /** Raw bytes of each page, used for verbatim copying of audio pages during save. */
   private _pageRawData: Uint8Array[] = [];
+  /** Index of the first logical packet that begins on each page. */
   private _pageFirstPktIdx: number[] = [];
+  /** Reassembled logical packets keyed by their zero-based packet index. */
   private _packets: Map<number, ByteVector> = new Map();
+  /** Packets that have been modified in memory and not yet flushed to disk. */
   private _dirtyPackets: Map<number, ByteVector> = new Map();
+  /** OGG serial number of the first (and only) logical bitstream encountered. */
   private _serialNumber: number = 0;
 
+  /**
+   * Constructs an OggFile backed by the given stream.
+   * @param stream - The I/O stream to read from and write to.
+   */
   constructor(stream: IOStream) {
     super(stream);
   }
@@ -179,6 +197,12 @@ export abstract class OggFile extends File {
   // Packet access
   // ---------------------------------------------------------------------------
 
+  /**
+   * Retrieve a logical packet by its zero-based index.
+   * Returns the dirty (in-memory) version if one exists, otherwise reads and reassembles from disk.
+   * @param index - Zero-based packet index.
+   * @returns The packet data as a {@link ByteVector}.
+   */
   async packet(index: number): Promise<ByteVector> {
     const dirty = this._dirtyPackets.get(index);
     if (dirty) return dirty;
@@ -190,19 +214,29 @@ export abstract class OggFile extends File {
     return this._packets.get(index) ?? new ByteVector();
   }
 
+  /**
+   * Mark a packet as dirty with new content to be written on the next save.
+   * @param index - Zero-based packet index.
+   * @param data - New packet data to store and use when saving.
+   */
   setPacket(index: number, data: ByteVector): void {
     this._dirtyPackets.set(index, data);
   }
 
-  // ---------------------------------------------------------------------------
-  // Page access
-  // ---------------------------------------------------------------------------
-
+  /**
+   * Returns the header of the first OGG page in the stream.
+   * @returns The first {@link OggPageHeader}, or `null` if the stream is empty or invalid.
+   */
   async firstPageHeader(): Promise<OggPageHeader | null> {
     await this.readPages();
     return this._pages?.[0] ?? null;
   }
 
+  /**
+   * Returns the header of the last OGG page in the stream.
+   * Used for computing total granule count and thus stream duration.
+   * @returns The last {@link OggPageHeader}, or `null` if the stream is empty or invalid.
+   */
   async lastPageHeader(): Promise<OggPageHeader | null> {
     await this.readPages();
     if (this._pages && this._pages.length > 0) {
@@ -215,6 +249,14 @@ export abstract class OggFile extends File {
   // Save — preserves audio pages, only re-renders header pages
   // ---------------------------------------------------------------------------
 
+  /**
+   * Persist all pending packet changes to the underlying stream.
+   *
+   * Header packets are re-rendered from in-memory (possibly dirty) copies.
+   * Audio pages are copied verbatim from the original stream with adjusted
+   * sequence numbers, preserving granule positions and audio data.
+   * @returns `true` on success, `false` if the file is read-only or has no pages.
+   */
   async save(): Promise<boolean> {
     if (this.readOnly) return false;
 
@@ -284,6 +326,10 @@ export abstract class OggFile extends File {
   // Internal page/packet reading
   // ---------------------------------------------------------------------------
 
+  /**
+   * Parse all OGG pages from the stream and reassemble logical packets.
+   * Results are cached; subsequent calls are no-ops until the cache is cleared (e.g., after save).
+   */
   private async readPages(): Promise<void> {
     if (this._pages !== null) return;
 

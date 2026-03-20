@@ -1,8 +1,11 @@
+/** @file OGG page header parser for the OGG container format. */
+
 import { ByteVector, StringType } from "../byteVector.js";
 import type { offset_t } from "../toolkit/types.js";
 import { Position } from "../toolkit/types.js";
 import { IOStream } from "../toolkit/ioStream.js";
 
+/** The four-byte OGG page capture pattern "OggS". */
 const CAPTURE_PATTERN = ByteVector.fromString("OggS", StringType.Latin1);
 
 /**
@@ -10,16 +13,26 @@ const CAPTURE_PATTERN = ByteVector.fromString("OggS", StringType.Latin1);
  * header followed by the segment table.
  */
 export class OggPageHeader {
+  /** Whether this page header was successfully parsed and validated. */
   private _valid: boolean = false;
+  /** Header type flags byte (0x01 = continuation, 0x02 = BOS, 0x04 = EOS). */
   private _headerType: number = 0;
+  /** Granule position encoded in the page header (codec-specific time stamp). */
   private _granulePosition: bigint = 0n;
+  /** Serial number identifying the logical bitstream to which this page belongs. */
   private _serialNumber: number = 0;
+  /** Monotonically increasing page sequence number within the bitstream. */
   private _sequenceNumber: number = 0;
+  /** CRC-32 checksum stored in the page header. */
   private _checksum: number = 0;
+  /** Raw segment table bytes (one byte per segment, values 0–255). */
   private _segmentTable: Uint8Array = new Uint8Array(0);
+  /** Total size of the page payload in bytes, derived from the segment table. */
   private _dataSize: number = 0;
+  /** Sizes of each logical packet (or partial packet) carried in this page. */
   private _packetSizes: number[] = [];
 
+  /** Whether this page header was successfully parsed and validated. */
   get isValid(): boolean {
     return this._valid;
   }
@@ -39,14 +52,17 @@ export class OggPageHeader {
     return (this._headerType & 0x04) !== 0;
   }
 
+  /** The granule position encoded in this page, used to compute stream duration. */
   get granulePosition(): bigint {
     return this._granulePosition;
   }
 
+  /** Serial number of the logical bitstream to which this page belongs. */
   get serialNumber(): number {
     return this._serialNumber;
   }
 
+  /** Monotonically increasing sequence number of this page within its bitstream. */
   get sequenceNumber(): number {
     return this._sequenceNumber;
   }
@@ -66,6 +82,7 @@ export class OggPageHeader {
     return this.headerSize + this._dataSize;
   }
 
+  /** Raw segment table bytes (one byte per segment, values 0–255). */
   get segmentTable(): Uint8Array {
     return this._segmentTable;
   }

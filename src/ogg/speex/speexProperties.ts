@@ -1,8 +1,11 @@
+/** @file Audio properties for the Ogg Speex format, parsed from the Speex identification header (packet 0). */
+
 import { AudioProperties } from "../../audioProperties.js";
 import { ByteVector, StringType } from "../../byteVector.js";
 import { ReadStyle } from "../../toolkit/types.js";
 import type { OggFile } from "../oggFile.js";
 
+/** The 8-byte Speex identification header magic "Speex   " (with three trailing spaces). */
 const SPEEX_HEADER = ByteVector.fromString("Speex   ", StringType.Latin1);
 
 /**
@@ -16,15 +19,29 @@ const SPEEX_HEADER = ByteVector.fromString("Speex   ", StringType.Latin1);
  *   frameSize(4 LE) + vbr(4 LE) + framesPerPacket(4 LE)
  */
 export class SpeexProperties extends AudioProperties {
+  /** Stream duration in milliseconds, computed from first and last granule positions. */
   private _lengthInMs: number = 0;
+  /** Average bitrate in kilobits per second, or header bitrate as a fallback. */
   private _bitrate: number = 0;
+  /** Sample rate in Hz as declared in the Speex identification header. */
   private _sampleRate: number = 0;
+  /** Number of audio channels as declared in the Speex identification header. */
   private _channels: number = 0;
 
+  /**
+   * Constructs a SpeexProperties instance with the given read style.
+   * @param readStyle - Level of detail for property parsing.
+   */
   constructor(readStyle: ReadStyle = ReadStyle.Average) {
     super(readStyle);
   }
 
+  /**
+   * Asynchronously parse and return audio properties from the given Ogg Speex file.
+   * @param file - The {@link OggFile} to read properties from.
+   * @param readStyle - Level of detail for property parsing.
+   * @returns A populated {@link SpeexProperties} instance.
+   */
   static async create(
     file: OggFile,
     readStyle: ReadStyle = ReadStyle.Average,
@@ -38,18 +55,22 @@ export class SpeexProperties extends AudioProperties {
   // AudioProperties interface
   // ---------------------------------------------------------------------------
 
+  /** Stream duration in milliseconds, computed from first and last granule positions. */
   get lengthInMilliseconds(): number {
     return this._lengthInMs;
   }
 
+  /** Average bitrate in kilobits per second, or the header bitrate as a fallback. */
   override get bitrate(): number {
     return this._bitrate;
   }
 
+  /** Sample rate in Hz as declared in the Speex identification header. */
   override get sampleRate(): number {
     return this._sampleRate;
   }
 
+  /** Number of audio channels as declared in the Speex identification header. */
   get channels(): number {
     return this._channels;
   }
@@ -58,6 +79,10 @@ export class SpeexProperties extends AudioProperties {
   // Private
   // ---------------------------------------------------------------------------
 
+  /**
+   * Reads and populates audio properties from the Speex identification header (packet 0).
+   * @param file - The {@link OggFile} to read from.
+   */
   private async read(file: OggFile): Promise<void> {
     const data = await file.packet(0);
 
