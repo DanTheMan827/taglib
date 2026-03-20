@@ -1,3 +1,5 @@
+/** @file Shorten (.shn) lossless audio file format handler. Read-only; decodes audio properties from the embedded verbatim header. */
+
 import { ByteVector, StringType } from "../byteVector.js";
 import { File } from "../file.js";
 import { Tag } from "../tag.js";
@@ -10,42 +12,84 @@ import { ShortenProperties, type ShortenPropertyValues } from "./shortenProperti
 // Constants
 // =============================================================================
 
+/** Minimum Shorten format version supported by this parser. */
 const MIN_SUPPORTED_VERSION = 1;
+/** Maximum Shorten format version supported by this parser. */
 const MAX_SUPPORTED_VERSION = 3;
 
+/** Rice-Golomb code size used for channel count fields. */
 const CHANNEL_COUNT_CODE_SIZE = 0;
+/** Rice-Golomb code size used for function code fields. */
 const FUNCTION_CODE_SIZE = 2;
+/** Rice-Golomb code size used for verbatim chunk size fields. */
 const VERBATIM_CHUNK_SIZE_CODE_SIZE = 5;
+/** Rice-Golomb code size used for verbatim byte fields. */
 const VERBATIM_BYTE_CODE_SIZE = 8;
+/** Rice-Golomb code size used for uint32 fields. */
 const UINT32_CODE_SIZE = 2;
+/** Rice-Golomb code size used for skip-bytes count fields. */
 const SKIP_BYTES_CODE_SIZE = 1;
+/** Rice-Golomb code size used for LPC order fields. */
 const LPCQ_CODE_SIZE = 2;
+/** Rice-Golomb code size used for extra (skip) byte fields. */
 const EXTRA_BYTE_CODE_SIZE = 7;
+/** Rice-Golomb code size used for file type fields. */
 const FILE_TYPE_CODE_SIZE = 4;
 
+/** Shorten function code value that indicates a verbatim (raw header) block. */
 const FUNCTION_VERBATIM = 9;
+/** Minimum verbatim header size required to contain a WAVE/AIFF canonical header. */
 const CANONICAL_HEADER_SIZE = 44;
+/** Maximum allowed verbatim chunk size. */
 const VERBATIM_CHUNK_MAX_SIZE = 256;
+/** Maximum channel count accepted when parsing Shorten streams. */
 const MAX_CHANNEL_COUNT = 8;
+/** Default audio block size used for entropy coding. */
 const DEFAULT_BLOCK_SIZE = 256;
+/** Maximum legal audio block size in a Shorten stream. */
 const MAX_BLOCK_SIZE = 65535;
+/** WAVE PCM format tag value (`0x0001`). */
 const WAVE_FORMAT_PCM_TAG = 0x0001;
 
 // =============================================================================
 // Variable-Length Input (Golomb-Rice coding)
 // =============================================================================
 
+/**
+ * Streaming bit-level reader that decodes Rice-Golomb variable-length codes
+ * from a {@link File} stream.
+ *
+ * Maintains an internal 32-bit bit buffer and refills it from the file as
+ * needed. Used exclusively by {@link ShortenFile} during header parsing.
+ */
 class VariableLengthInput {
+  /** The underlying file to read raw bytes from. */
   private file: File;
+  /** Byte buffer holding a recently read block from the file. */
   private buffer: ByteVector = ByteVector.fromByteArray(new Uint8Array(0));
+  /** Current read position within {@link buffer}. */
   private bufferPosition: number = 0;
+  /** Current 32-bit bit-buffer holding up to 32 bits of data. */
   private bitBuffer: number = 0;
+  /** Number of valid bits remaining in {@link bitBuffer}. */
   private bitsAvailable: number = 0;
 
+  /**
+   * Constructs a `VariableLengthInput` reader backed by the given file.
+   * @param file - The file to read encoded data from.
+   */
   constructor(file: File) {
     this.file = file;
   }
 
+  /**
+   * Decodes a single Rice-Golomb code of order `k` from the bit stream.
+   *
+   * The unary prefix gives the quotient and the subsequent `k` bits give
+   * the remainder. The decoded value is `quotient * 2^k + remainder`.
+   * @param k - The Rice parameter (number of remainder bits).
+   * @returns An object with `value` (the decoded integer) and `ok` (`false` on EOF).
+   */
   async getRiceGolombCode(k: number): Promise<{ value: number; ok: boolean }> {
     const MASK_TABLE = [
       0x0,
@@ -93,6 +137,16 @@ class VariableLengthInput {
     return { value: result, ok: true };
   }
 
+  /**
+   * Decodes an unsigned integer from the stream using an adaptive Rice code.
+   *
+   * For version > 0 the Rice parameter `k` is itself read from the stream
+   * using a fixed {@link UINT32_CODE_SIZE}-bit code; for version 0 the
+   * caller-supplied `k` is used directly.
+   * @param version - The Shorten file version (controls whether `k` is adaptive).
+   * @param k - Initial Rice parameter (used directly when `version` is `0`).
+   * @returns An object with `value` (the decoded unsigned integer) and `ok`.
+   */
   async getUInt(version: number, k: number): Promise<{ value: number; ok: boolean }> {
     if (version > 0) {
       const kResult = await this.getRiceGolombCode(UINT32_CODE_SIZE);
@@ -104,6 +158,10 @@ class VariableLengthInput {
     return { value: result.value >>> 0, ok: true };
   }
 
+  /**
+   * Reads the next 32-bit word from the file into the internal bit buffer.
+   * @returns `true` if the buffer was successfully refilled, `false` on EOF.
+   */
   private async refillBitBuffer(): Promise<boolean> {
     if (this.buffer.length - this.bufferPosition < 4) {
       const block = await this.file.readBlock(512);
@@ -126,20 +184,33 @@ class VariableLengthInput {
 /**
  * Shorten (.shn) file format handler.
  *
- * Read-only format. The file starts with magic "ajkg", followed by a version
- * byte and variable-length coded audio parameters. The actual audio metadata
- * (sample rate, bits per sample) comes from an embedded WAVE or AIFF header
- * in a verbatim section.
+ * Read-only format. The file starts with the four-byte magic "ajkg", followed
+ * by a version byte and variable-length coded audio parameters. The actual
+ * audio metadata (sample rate, bits per sample) comes from an embedded WAVE
+ * or AIFF header inside the first verbatim section.
  */
 export class ShortenFile extends File {
+  /** The stub tag (Shorten files carry no metadata). */
   private _tag: ShortenTag;
+  /** Parsed audio properties, or `null` if not yet read. */
   private _properties: ShortenProperties | null = null;
 
+  /**
+   * Private constructor — use {@link ShortenFile.open} to create instances.
+   * @param stream - The underlying I/O stream for this Shorten file.
+   */
   private constructor(stream: IOStream) {
     super(stream);
     this._tag = new ShortenTag();
   }
 
+  /**
+   * Opens and parses a Shorten file from the given stream.
+   * @param stream - Readable I/O stream for the `.shn` file.
+   * @param readProperties - When `true` (default), parse audio properties.
+   * @param readStyle - Controls parsing accuracy vs. speed trade-off.
+   * @returns A fully initialised `ShortenFile` instance.
+   */
   static async open(
     stream: IOStream,
     readProperties: boolean = true,
@@ -156,6 +227,12 @@ export class ShortenFile extends File {
   // Static
   // ---------------------------------------------------------------------------
 
+  /**
+   * Quick-check whether `stream` looks like a valid Shorten file.
+   * Verifies the four-byte "ajkg" magic at offset 0.
+   * @param stream - The I/O stream to test.
+   * @returns `true` if the stream appears to be a valid Shorten file.
+   */
   static async isSupported(stream: IOStream): Promise<boolean> {
     await stream.seek(0);
     const magic = await stream.readBlock(4);
@@ -167,14 +244,27 @@ export class ShortenFile extends File {
   // File interface
   // ---------------------------------------------------------------------------
 
+  /**
+   * Returns the tag for this Shorten file.
+   * Shorten files carry no metadata; the returned tag is always empty.
+   * @returns The stub {@link ShortenTag}.
+   */
   tag(): Tag {
     return this._tag;
   }
 
+  /**
+   * Returns the audio properties parsed from the Shorten stream.
+   * @returns The {@link ShortenProperties}, or `null` if parsing failed or was skipped.
+   */
   audioProperties(): ShortenProperties | null {
     return this._properties;
   }
 
+  /**
+   * Shorten files are read-only; this method always returns `false`.
+   * @returns `false`.
+   */
   async save(): Promise<boolean> {
     // Shorten files are read-only
     return false;
@@ -184,6 +274,11 @@ export class ShortenFile extends File {
   // Private – reading
   // ---------------------------------------------------------------------------
 
+  /**
+   * Reads and decodes audio properties from the Shorten stream header.
+   * @param _readProperties - Ignored; properties are always parsed when the file is valid.
+   * @param readStyle - Level of detail for audio property parsing.
+   */
   private async read(_readProperties: boolean, readStyle: ReadStyle): Promise<void> {
     await this.seek(0);
     const magic = await this.readBlock(4);
@@ -288,6 +383,12 @@ export class ShortenFile extends File {
     }
   }
 
+  /**
+   * Parses a RIFF/WAVE header embedded in the Shorten verbatim section.
+   * Extracts sample rate, bits per sample, and (if available) sample frame count.
+   * @param header - The verbatim header bytes as a `ByteVector`.
+   * @param props - The property values object to populate.
+   */
   private parseWaveHeader(header: ByteVector, props: ShortenPropertyValues): void {
     let offset = 8; // Skip RIFF + size
 
@@ -341,6 +442,12 @@ export class ShortenFile extends File {
     }
   }
 
+  /**
+   * Parses an AIFF/AIFC header embedded in the Shorten verbatim section.
+   * Extracts sample rate, bits per sample, and sample frame count from the COMM chunk.
+   * @param header - The verbatim header bytes as a `ByteVector`.
+   * @param props - The property values object to populate.
+   */
   private parseAiffHeader(header: ByteVector, props: ShortenPropertyValues): void {
     let offset = 8; // Skip FORM + size
 

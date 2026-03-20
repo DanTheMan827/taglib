@@ -1,3 +1,5 @@
+/** @file Extended Module (XM) tracker file format handler. Reads and writes title, tracker name, instrument names, and sample names. */
+
 import { ByteVector, StringType } from "../byteVector.js";
 import { File } from "../file.js";
 import { Tag } from "../tag.js";
@@ -7,7 +9,11 @@ import { ModTag } from "../mod/modTag.js";
 import { XmProperties } from "./xmProperties.js";
 
 /**
- * Helper: read a Latin1 string, trimming at the first NUL and replacing 0xFF with space.
+ * Reads a Latin-1 string from `data`, replacing `0xFF` bytes with spaces and
+ * truncating at the first NUL character.
+ * @param data - The source `ByteVector` to read from.
+ * @param maxLen - Maximum number of bytes to consider.
+ * @returns The decoded and sanitised string.
  */
 function readString(data: ByteVector, maxLen: number): string {
   let raw = data.mid(0, maxLen).toString(StringType.Latin1);
@@ -19,18 +25,32 @@ function readString(data: ByteVector, maxLen: number): string {
 /**
  * Extended Module (XM) file format handler.
  *
- * Magic "Extended Module: " at offset 0. Title at offset 17 (20 bytes).
- * Tracker name at offset 38 (20 bytes). Instrument and sample names form the comment.
+ * The 17-byte magic "Extended Module: " appears at offset 0. The module title
+ * occupies bytes 17–36, and the tracker name bytes 38–57. Instrument and
+ * sample names are collected and stored as a newline-delimited tag comment.
  */
 export class XmFile extends File {
+  /** The tag holding the module title, comment (instrument/sample names), and tracker name. */
   private _tag: ModTag;
+  /** Parsed audio properties, or `null` if not yet read or not requested. */
   private _properties: XmProperties | null = null;
 
+  /**
+   * Private constructor — use {@link XmFile.open} to create instances.
+   * @param stream - The underlying I/O stream for this XM file.
+   */
   private constructor(stream: IOStream) {
     super(stream);
     this._tag = new ModTag();
   }
 
+  /**
+   * Opens and parses an XM file from the given stream.
+   * @param stream - Readable (and optionally writable) I/O stream.
+   * @param readProperties - When `true` (default), parse audio properties.
+   * @param readStyle - Controls parsing accuracy vs. speed trade-off.
+   * @returns A fully initialised `XmFile` instance.
+   */
   static async open(
     stream: IOStream,
     readProperties: boolean = true,
@@ -47,6 +67,12 @@ export class XmFile extends File {
   // Static
   // ---------------------------------------------------------------------------
 
+  /**
+   * Quick-check whether `stream` looks like a valid XM file.
+   * Reads the 17-byte magic "Extended Module: " at offset 0.
+   * @param stream - The I/O stream to test.
+   * @returns `true` if the stream appears to be a valid XM file.
+   */
   static async isSupported(stream: IOStream): Promise<boolean> {
     await stream.seek(0);
     const header = await stream.readBlock(17);
@@ -59,14 +85,27 @@ export class XmFile extends File {
   // File interface
   // ---------------------------------------------------------------------------
 
+  /**
+   * Returns the tag for this XM file.
+   * @returns The {@link ModTag} containing title, comment, and tracker name.
+   */
   tag(): Tag {
     return this._tag;
   }
 
+  /**
+   * Returns the audio properties parsed from the XM header.
+   * @returns The {@link XmProperties}, or `null` if `readProperties` was `false` on open.
+   */
   audioProperties(): XmProperties | null {
     return this._properties;
   }
 
+  /**
+   * Writes pending tag changes (title, tracker name, instrument names, and
+   * sample names) back to the file.
+   * @returns `true` on success, `false` if the file is read-only.
+   */
   async save(): Promise<boolean> {
     if (this.readOnly) return false;
 
@@ -175,6 +214,11 @@ export class XmFile extends File {
   // Private – reading
   // ---------------------------------------------------------------------------
 
+  /**
+   * Reads metadata and (optionally) audio properties from the XM stream.
+   * @param readProperties - Whether to parse audio properties.
+   * @param readStyle - Level of detail for audio property parsing.
+   */
   private async read(readProperties: boolean, readStyle: ReadStyle): Promise<void> {
     await this.seek(0);
     const magicData = await this.readBlock(17);
@@ -385,6 +429,12 @@ export class XmFile extends File {
 // Helpers
 // =============================================================================
 
+/**
+ * Encodes a string into a fixed-length Latin-1 `ByteVector`, padding with NUL bytes.
+ * @param s - The source string to encode.
+ * @param len - The exact byte length of the output vector.
+ * @returns A `ByteVector` of exactly `len` bytes.
+ */
 function padString(s: string, len: number): ByteVector {
   const arr = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
