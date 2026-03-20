@@ -1,3 +1,5 @@
+/** @file WavPack file format handler. Supports APE (primary) and ID3v1 (secondary) tags. */
+
 import { ByteVector, StringType } from "../byteVector.js";
 import { File } from "../file.js";
 import { Tag } from "../tag.js";
@@ -12,10 +14,15 @@ import { WavPackProperties } from "./wavpackProperties.js";
 // Enums
 // =============================================================================
 
+/** Bitmask of tag types present in or to be applied to a WavPack file. */
 export enum WavPackTagTypes {
+  /** No tags. */
   NoTags = 0x0000,
+  /** ID3v1 tag appended at the end of the file. */
   ID3v1 = 0x0001,
+  /** APE tag written immediately before the ID3v1 tag (or at EOF). */
   APE = 0x0004,
+  /** All supported tag types. */
   AllTags = 0xffff,
 }
 
@@ -29,21 +36,39 @@ export enum WavPackTagTypes {
  * Supports APE (primary) and ID3v1 (secondary) tags.
  */
 export class WavPackFile extends File {
+  /** The APE tag read from or to be written to the file, or `null` if absent. */
   private _apeTag: ApeTag | null = null;
+  /** The ID3v1 tag read from or to be written to the file, or `null` if absent. */
   private _id3v1Tag: ID3v1Tag | null = null;
+  /** Priority-ordered combined view of all tags (APE preferred over ID3v1). */
   private _combinedTag: CombinedTag;
+  /** Parsed audio properties, or `null` if not yet read. */
   private _properties: WavPackProperties | null = null;
 
+  /** Byte offset of the APE tag in the file, or `-1` if absent. */
   private _apeLocation: offset_t = -1;
+  /** Original byte size of the APE tag on disk (used for in-place replacement). */
   private _apeOriginalSize: number = 0;
 
+  /** Byte offset of the ID3v1 tag in the file, or `-1` if absent. */
   private _id3v1Location: offset_t = -1;
 
+  /**
+   * Private constructor — use {@link WavPackFile.open} to create instances.
+   * @param stream - The underlying I/O stream for the WavPack file.
+   */
   private constructor(stream: IOStream) {
     super(stream);
     this._combinedTag = new CombinedTag([]);
   }
 
+  /**
+   * Open and parse a WavPack file from the given stream.
+   * @param stream - The I/O stream to read from.
+   * @param readProperties - Whether to parse audio properties. Defaults to `true`.
+   * @param readStyle - Level of detail for audio property parsing. Defaults to `ReadStyle.Average`.
+   * @returns A fully initialised `WavPackFile` instance.
+   */
   static async open(
     stream: IOStream,
     readProperties: boolean = true,
@@ -60,7 +85,12 @@ export class WavPackFile extends File {
   // Static
   // ---------------------------------------------------------------------------
 
-  /** Quick-check whether `stream` looks like a valid WavPack file. */
+  /**
+   * Quick-check whether `stream` looks like a valid WavPack file.
+   * A WavPack file begins with the `"wvpk"` magic bytes.
+   * @param stream - The I/O stream to inspect.
+   * @returns `true` if the stream starts with the WavPack magic.
+   */
   static async isSupported(stream: IOStream): Promise<boolean> {
     await stream.seek(0);
     const headerData = await stream.readBlock(4);
@@ -74,14 +104,26 @@ export class WavPackFile extends File {
   // File interface
   // ---------------------------------------------------------------------------
 
+  /**
+   * Returns the combined tag providing unified access to all tag data.
+   * @returns The {@link CombinedTag} for this file (APE preferred over ID3v1).
+   */
   tag(): Tag {
     return this._combinedTag;
   }
 
+  /**
+   * Returns the audio properties parsed from the WavPack block headers.
+   * @returns The {@link WavPackProperties}, or `null` if `readProperties` was `false` on open.
+   */
   audioProperties(): WavPackProperties | null {
     return this._properties;
   }
 
+  /**
+   * Writes all pending tag changes to the file.
+   * @returns `true` on success, `false` if the file is read-only.
+   */
   async save(): Promise<boolean> {
     if (this.readOnly) return false;
 
@@ -130,7 +172,11 @@ export class WavPackFile extends File {
   // Tag accessors (lazy-create)
   // ---------------------------------------------------------------------------
 
-  /** Get the ID3v1 tag, optionally creating one if absent. */
+  /**
+   * Get the ID3v1 tag, optionally creating one if absent.
+   * @param create - When `true`, a new empty tag is created if none exists.
+   * @returns The {@link ID3v1Tag}, or `null` if absent and `create` is `false`.
+   */
   id3v1Tag(create?: boolean): ID3v1Tag | null {
     if (!this._id3v1Tag && create) {
       this._id3v1Tag = new ID3v1Tag();
@@ -139,7 +185,11 @@ export class WavPackFile extends File {
     return this._id3v1Tag;
   }
 
-  /** Get the APE tag, optionally creating one if absent. */
+  /**
+   * Get the APE tag, optionally creating one if absent.
+   * @param create - When `true`, a new empty tag is created if none exists.
+   * @returns The {@link ApeTag}, or `null` if absent and `create` is `false`.
+   */
   apeTag(create?: boolean): ApeTag | null {
     if (!this._apeTag && create) {
       this._apeTag = new ApeTag();
@@ -155,6 +205,7 @@ export class WavPackFile extends File {
   /**
    * Remove the specified tag types from the in-memory representation.
    * Call `save()` afterwards to persist the changes to disk.
+   * @param tags - Bitmask of tag types to remove. Defaults to {@link WavPackTagTypes.AllTags}.
    */
   strip(tags: WavPackTagTypes = WavPackTagTypes.AllTags): void {
     if (tags & WavPackTagTypes.ID3v1) {
@@ -187,6 +238,11 @@ export class WavPackFile extends File {
   // Private – reading
   // ---------------------------------------------------------------------------
 
+  /**
+   * Reads all tags and (optionally) audio properties from the file.
+   * @param readProperties - Whether to parse audio properties.
+   * @param readStyle - Level of detail for audio property parsing.
+   */
   private async read(readProperties: boolean, readStyle: ReadStyle): Promise<void> {
     // 1. Find ID3v1
     await this.findID3v1();
@@ -219,6 +275,10 @@ export class WavPackFile extends File {
     }
   }
 
+  /**
+   * Searches the end of the file for an ID3v1 tag and, if found,
+   * populates {@link _id3v1Location} and {@link _id3v1Tag}.
+   */
   private async findID3v1(): Promise<void> {
     if ((await this.fileLength()) < 128) return;
 
@@ -232,6 +292,10 @@ export class WavPackFile extends File {
     this._id3v1Tag = await ID3v1Tag.readFrom(this._stream, tagOffset);
   }
 
+  /**
+   * Searches for an APE tag footer immediately before the ID3v1 tag (or end of file)
+   * and, if found, populates {@link _apeLocation}, {@link _apeOriginalSize}, and {@link _apeTag}.
+   */
   private async findAPE(): Promise<void> {
     const searchEnd: offset_t =
       this._id3v1Location >= 0 ? this._id3v1Location : (await this.fileLength());
@@ -254,6 +318,10 @@ export class WavPackFile extends File {
     this._apeTag = await ApeTag.readFrom(this._stream, footerOffset);
   }
 
+  /**
+   * Rebuilds {@link _combinedTag} from the currently active tag objects,
+   * ordered by priority (APE before ID3v1).
+   */
   private refreshCombinedTag(): void {
     // Priority: APE > ID3v1
     this._combinedTag.setTags([this._apeTag, this._id3v1Tag]);

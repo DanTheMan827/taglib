@@ -1,3 +1,5 @@
+/** @file TrueAudio (TTA) file format handler. Supports ID3v1 and ID3v2 tags. */
+
 import { ByteVector, StringType } from "../byteVector.js";
 import { File } from "../file.js";
 import { Tag } from "../tag.js";
@@ -13,10 +15,15 @@ import { TrueAudioProperties, TTA_HEADER_SIZE } from "./trueAudioProperties.js";
 // Enums
 // =============================================================================
 
+/** Bitmask of tag types present in or to be applied to a TrueAudio file. */
 export enum TrueAudioTagTypes {
+  /** No tags. */
   NoTags = 0x0000,
+  /** ID3v1 tag appended at the end of the file. */
   ID3v1 = 0x0001,
+  /** ID3v2 tag prepended at the start of the file. */
   ID3v2 = 0x0002,
+  /** All supported tag types. */
   AllTags = 0xffff,
 }
 
@@ -30,21 +37,39 @@ export enum TrueAudioTagTypes {
  * Supports ID3v2 (primary) and ID3v1 (secondary) tags.
  */
 export class TrueAudioFile extends File {
+  /** The ID3v2 tag read from or to be written to the file, or `null` if absent. */
   private _id3v2Tag: Id3v2Tag | null = null;
+  /** The ID3v1 tag read from or to be written to the file, or `null` if absent. */
   private _id3v1Tag: ID3v1Tag | null = null;
+  /** Priority-ordered combined view of all tags (ID3v2 preferred over ID3v1). */
   private _combinedTag: CombinedTag;
+  /** Parsed audio properties, or `null` if not yet read. */
   private _properties: TrueAudioProperties | null = null;
 
+  /** Byte offset of the ID3v2 tag in the file, or `-1` if absent. */
   private _id3v2Location: offset_t = -1;
+  /** Original byte size of the ID3v2 tag on disk (used for in-place replacement). */
   private _id3v2OriginalSize: number = 0;
 
+  /** Byte offset of the ID3v1 tag in the file, or `-1` if absent. */
   private _id3v1Location: offset_t = -1;
 
+  /**
+   * Private constructor — use {@link TrueAudioFile.open} to create instances.
+   * @param stream - The underlying I/O stream for the TTA file.
+   */
   private constructor(stream: IOStream) {
     super(stream);
     this._combinedTag = new CombinedTag([]);
   }
 
+  /**
+   * Open and parse a TrueAudio file from the given stream.
+   * @param stream - The I/O stream to read from.
+   * @param readProperties - Whether to parse audio properties. Defaults to `true`.
+   * @param readStyle - Level of detail for audio property parsing. Defaults to `ReadStyle.Average`.
+   * @returns A fully initialised `TrueAudioFile` instance.
+   */
   static async open(
     stream: IOStream,
     readProperties: boolean = true,
@@ -97,14 +122,26 @@ export class TrueAudioFile extends File {
   // File interface
   // ---------------------------------------------------------------------------
 
+  /**
+   * Returns the combined tag providing unified access to all tag data.
+   * @returns The {@link CombinedTag} for this file (ID3v2 preferred over ID3v1).
+   */
   tag(): Tag {
     return this._combinedTag;
   }
 
+  /**
+   * Returns the audio properties parsed from the TTA header.
+   * @returns The {@link TrueAudioProperties}, or `null` if `readProperties` was `false` on open.
+   */
   audioProperties(): TrueAudioProperties | null {
     return this._properties;
   }
 
+  /**
+   * Writes all pending tag changes to the file.
+   * @returns `true` on success, `false` if the file is read-only.
+   */
   async save(): Promise<boolean> {
     if (this.readOnly) return false;
 
@@ -154,7 +191,11 @@ export class TrueAudioFile extends File {
   // Tag accessors (lazy-create)
   // ---------------------------------------------------------------------------
 
-  /** Get the ID3v2 tag, optionally creating one if absent. */
+  /**
+   * Get the ID3v2 tag, optionally creating one if absent.
+   * @param create - When `true`, a new empty tag is created if none exists.
+   * @returns The {@link Id3v2Tag}, or `null` if absent and `create` is `false`.
+   */
   id3v2Tag(create?: boolean): Id3v2Tag | null {
     if (!this._id3v2Tag && create) {
       this._id3v2Tag = new Id3v2Tag();
@@ -163,7 +204,11 @@ export class TrueAudioFile extends File {
     return this._id3v2Tag;
   }
 
-  /** Get the ID3v1 tag, optionally creating one if absent. */
+  /**
+   * Get the ID3v1 tag, optionally creating one if absent.
+   * @param create - When `true`, a new empty tag is created if none exists.
+   * @returns The {@link ID3v1Tag}, or `null` if absent and `create` is `false`.
+   */
   id3v1Tag(create?: boolean): ID3v1Tag | null {
     if (!this._id3v1Tag && create) {
       this._id3v1Tag = new ID3v1Tag();
@@ -179,6 +224,7 @@ export class TrueAudioFile extends File {
   /**
    * Remove the specified tag types from the in-memory representation.
    * Call `save()` afterwards to persist the changes to disk.
+   * @param tags - Bitmask of tag types to remove. Defaults to {@link TrueAudioTagTypes.AllTags}.
    */
   strip(tags: TrueAudioTagTypes = TrueAudioTagTypes.AllTags): void {
     if (tags & TrueAudioTagTypes.ID3v1) {
@@ -210,6 +256,11 @@ export class TrueAudioFile extends File {
   // Private – reading
   // ---------------------------------------------------------------------------
 
+  /**
+   * Reads all tags and (optionally) audio properties from the file.
+   * @param readProperties - Whether to parse audio properties.
+   * @param readStyle - Level of detail for audio property parsing.
+   */
   private async read(readProperties: boolean, readStyle: ReadStyle): Promise<void> {
     // 1. Find ID3v2
     await this.findID3v2();
@@ -250,6 +301,10 @@ export class TrueAudioFile extends File {
     }
   }
 
+  /**
+   * Searches the start of the file for an ID3v2 tag and, if found,
+   * populates {@link _id3v2Location}, {@link _id3v2OriginalSize}, and {@link _id3v2Tag}.
+   */
   private async findID3v2(): Promise<void> {
     await this.seek(0);
     const headerData = await this.readBlock(Id3v2Header.size);
@@ -264,6 +319,10 @@ export class TrueAudioFile extends File {
     this._id3v2Tag = await Id3v2Tag.readFrom(this._stream, this._id3v2Location);
   }
 
+  /**
+   * Searches the end of the file for an ID3v1 tag and, if found,
+   * populates {@link _id3v1Location} and {@link _id3v1Tag}.
+   */
   private async findID3v1(): Promise<void> {
     if ((await this.fileLength()) < 128) return;
 
@@ -277,6 +336,10 @@ export class TrueAudioFile extends File {
     this._id3v1Tag = await ID3v1Tag.readFrom(this._stream, tagOffset);
   }
 
+  /**
+   * Rebuilds {@link _combinedTag} from the currently active tag objects,
+   * ordered by priority (ID3v2 before ID3v1).
+   */
   private refreshCombinedTag(): void {
     // Priority: ID3v2 > ID3v1
     this._combinedTag.setTags([this._id3v2Tag, this._id3v1Tag]);

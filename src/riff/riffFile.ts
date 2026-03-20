@@ -1,3 +1,5 @@
+/** @file Abstract base class for RIFF/FORM container formats (WAV, AIFF). Handles chunk parsing and manipulation. */
+
 import { ByteVector, StringType } from "../byteVector.js";
 import { File } from "../file.js";
 import type { offset_t } from "../toolkit/types.js";
@@ -7,9 +9,13 @@ import type { IOStream } from "../toolkit/ioStream.js";
  * Metadata about a single RIFF/FORM chunk stored during parsing.
  */
 interface ChunkInfo {
+  /** Four-character chunk identifier (e.g. `"fmt "`, `"data"`, `"ID3 "`). */
   name: string;
+  /** Byte offset of the chunk data within the file (past the 8-byte chunk header). */
   offset: offset_t;
+  /** Byte size of the chunk data as recorded in the chunk header. */
   size: number;
+  /** Number of pad bytes appended after the data to align to an even boundary (0 or 1). */
   padding: number;
 }
 
@@ -23,10 +29,18 @@ interface ChunkInfo {
  *   chunkId(4) + chunkSize(4) + data (padded to even byte boundary)
  */
 export abstract class RiffFile extends File {
+  /** Whether multi-byte integers in this container are big-endian (`true` for AIFF/FORM, `false` for WAV/RIFF). */
   protected _bigEndian: boolean;
+  /** Ordered list of chunks found during header parsing. */
   private _chunks: ChunkInfo[] = [];
+  /** Format identifier read from bytes 8–11 of the file header (e.g. `"WAVE"`, `"AIFF"`). */
   private _format: string = "";
 
+  /**
+   * Protected constructor — subclasses call this to set up the stream and endianness.
+   * @param stream - The underlying I/O stream for the container file.
+   * @param bigEndian - `true` for big-endian (AIFF/FORM), `false` for little-endian (WAV/RIFF).
+   */
   protected constructor(stream: IOStream, bigEndian: boolean) {
     super(stream);
     this._bigEndian = bigEndian;
@@ -36,32 +50,61 @@ export abstract class RiffFile extends File {
   // Chunk access
   // ---------------------------------------------------------------------------
 
+  /**
+   * Total number of top-level chunks found in the file.
+   * @returns The chunk count.
+   */
   get chunkCount(): number {
     return this._chunks.length;
   }
 
+  /**
+   * Returns the four-character identifier of the chunk at the given index.
+   * @param index - Zero-based chunk index.
+   * @returns The chunk name (e.g. `"fmt "`, `"data"`).
+   */
   chunkName(index: number): string {
     return this._chunks[index].name;
   }
 
+  /**
+   * Returns the byte offset of the chunk data (past the 8-byte header) at the given index.
+   * @param index - Zero-based chunk index.
+   * @returns Byte offset within the file.
+   */
   chunkOffset(index: number): offset_t {
     return this._chunks[index].offset;
   }
 
+  /**
+   * Returns the data size (in bytes) of the chunk at the given index.
+   * @param index - Zero-based chunk index.
+   * @returns Chunk data size in bytes.
+   */
   chunkDataSize(index: number): number {
     return this._chunks[index].size;
   }
 
+  /**
+   * Reads and returns the raw data bytes of the chunk at the given index.
+   * @param index - Zero-based chunk index.
+   * @returns A promise resolving to the chunk's data as a {@link ByteVector}.
+   */
   async chunkData(index: number): Promise<ByteVector> {
     await this.seek(this._chunks[index].offset);
     return await this.readBlock(this._chunks[index].size);
   }
 
+  /**
+   * Returns the number of pad bytes (0 or 1) appended to the chunk at the given index.
+   * @param index - Zero-based chunk index.
+   * @returns Padding byte count.
+   */
   chunkPadding(index: number): number {
     return this._chunks[index].padding;
   }
 
-  /** The format identifier from the file header (e.g. "WAVE", "AIFF", "AIFC"). */
+  /** The format identifier from the file header (e.g. `"WAVE"`, `"AIFF"`, `"AIFC"`). */
   get riffFormat(): string {
     return this._format;
   }
@@ -72,8 +115,11 @@ export abstract class RiffFile extends File {
 
   /**
    * Set (or add) a chunk with the given four-character name.
-   * If `overwrite` is true (default) and a chunk with the same name already
+   * If `overwrite` is `true` (default) and a chunk with the same name already
    * exists, its data is replaced in-place; otherwise a new chunk is appended.
+   * @param name - Four-character chunk identifier.
+   * @param data - Raw data bytes to store in the chunk.
+   * @param overwrite - When `true`, replace an existing chunk with the same name.
    */
   async setChunkData(name: string, data: ByteVector, overwrite: boolean = true): Promise<void> {
     if (this.readOnly) return;
@@ -139,7 +185,8 @@ export abstract class RiffFile extends File {
   }
 
   /**
-   * Remove the first chunk matching `name`.
+   * Remove the first chunk matching `name` from both the file and the in-memory chunk list.
+   * @param name - Four-character chunk identifier to remove.
    */
   async removeChunk(name: string): Promise<void> {
     if (this.readOnly) return;
@@ -167,6 +214,10 @@ export abstract class RiffFile extends File {
   // Internal parsing
   // ---------------------------------------------------------------------------
 
+  /**
+   * Reads the RIFF/FORM file header and populates the internal chunk list.
+   * Sets `_valid` to `false` if the file header is missing or unrecognised.
+   */
   protected async parseHeader(): Promise<void> {
     await this.seek(0);
     const header = await this.readBlock(12);
@@ -208,7 +259,9 @@ export abstract class RiffFile extends File {
     }
   }
 
-  /** Rewrite the 4-byte file-size field at offset 4. */
+  /**
+   * Rewrites the 4-byte file-size field at byte offset 4 to reflect the current file length.
+   */
   private async updateFileSize(): Promise<void> {
     const size = (await this.fileLength()) - 8;
     await this.seek(4);
