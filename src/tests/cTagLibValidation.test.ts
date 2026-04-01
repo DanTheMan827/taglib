@@ -393,6 +393,46 @@ describeIfC("Audio properties preserved after tagging", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Audio properties: taglib-ts must match C TagLib on original test files
+// ---------------------------------------------------------------------------
+
+describeIfC("Audio properties: taglib-ts matches C TagLib", () => {
+  for (const cfg of FORMATS.filter(f => !f.skipAudioProps)) {
+    it(`${cfg.label}: audio properties match C TagLib for ${cfg.testFile}`, async () => {
+      const originalBytes = readTestData(cfg.testFile);
+
+      // C TagLib reads the original file
+      const cResult = validateWithC(originalBytes, cfg.ext);
+
+      // TypeScript reads the same original file
+      const ref = await FileRef.fromByteArray(new Uint8Array(originalBytes), "test" + cfg.ext);
+      expect(ref.isNull).toBe(false);
+      const tsProps = ref.audioProperties();
+      expect(tsProps).not.toBeNull();
+
+      // Sample rate and channels come directly from the file header — must be exact
+      if (cResult.sampleRate !== undefined && cResult.sampleRate > 0) {
+        expect(tsProps?.sampleRate).toBe(cResult.sampleRate);
+      }
+      if (cResult.channels !== undefined && cResult.channels > 0) {
+        expect(tsProps?.channels).toBe(cResult.channels);
+      }
+
+      // Duration — only compare when C reports a positive value (empty/silent
+      // files may legitimately have 0 ms)
+      if (cResult.durationMs !== undefined && cResult.durationMs > 0) {
+        expect(tsProps?.lengthInMilliseconds).toBe(cResult.durationMs);
+      }
+
+      // Bitrate — only compare when C reports a positive value
+      if (cResult.bitrate !== undefined && cResult.bitrate > 0) {
+        expect(tsProps?.bitrate).toBe(cResult.bitrate);
+      }
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Cross-validation: pictures
 // ---------------------------------------------------------------------------
 
