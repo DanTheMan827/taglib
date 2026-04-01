@@ -78,13 +78,14 @@ export class AiffFile extends RiffFile {
 
   /**
    * Writes all pending tag changes back to the underlying stream.
+   * @param version - Optional ID3v2 version to save as.
    * @returns `true` on success, `false` if the file is read-only.
    */
-  async save(): Promise<boolean> {
+  async save(version?: number): Promise<boolean> {
     if (this.readOnly) return false;
 
     if (this._id3v2Tag && !this._id3v2Tag.isEmpty) {
-      const rendered = this._id3v2Tag.render();
+      const rendered = this._id3v2Tag.render(version);
       await this.setChunkData("ID3 ", rendered);
     } else {
       await this.removeChunk("ID3 ");
