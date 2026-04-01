@@ -57,20 +57,29 @@ export class XiphComment extends Tag {
   }
 
   /**
-   * User comment, read from "DESCRIPTION" (preferred) or "COMMENT" as a fallback.
+   * User comment, read from "COMMENT" (preferred, matching C++ TagLib default) or
+   * "DESCRIPTION" as a fallback for tags written by older encoders.
    * @returns The comment string, or `""` if neither field is set.
    */
   get comment(): string {
-    const desc = this.firstFieldValue("DESCRIPTION");
-    return desc !== "" ? desc : this.firstFieldValue("COMMENT");
+    const comment = this.firstFieldValue("COMMENT");
+    return comment !== "" ? comment : this.firstFieldValue("DESCRIPTION");
   }
   /**
-   * Sets the comment in the "DESCRIPTION" field and removes any "COMMENT" alias.
+   * Sets the comment. Matches C++ TagLib `XiphComment::setComment()`: if a
+   * "DESCRIPTION" field already exists (loaded from file), update that field;
+   * otherwise write to "COMMENT" (the standard Vorbis comment field name).
    * @param v - New comment string; empty string removes the field.
    */
   set comment(v: string) {
-    this.addField("DESCRIPTION", v, true);
-    this.removeField("COMMENT");
+    // Match C++ TagLib: prefer "DESCRIPTION" if already present, else use "COMMENT"
+    if (this._fields.has("DESCRIPTION")) {
+      this.addField("DESCRIPTION", v, true);
+      this.removeField("COMMENT");
+    } else {
+      this.addField("COMMENT", v, true);
+      this.removeField("DESCRIPTION");
+    }
   }
 
   /** Genre stored in the "GENRE" field. */

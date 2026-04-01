@@ -43,6 +43,18 @@ export class MatroskaFile extends File {
   private _segmentSizeVintOffset: number = -1;
   /** Byte length of the segment size VINT encoding. */
   private _segmentSizeVintLength: number = 0;
+  /** Absolute byte offset of the segment data start (after Segment ID + size VINT). */
+  private _segmentDataOffset: number = -1;
+  /**
+   * The SeekHead element parsed from the file, or `null` if absent.
+   * Used to add new SeekEntries when Tags/Attachments are appended.
+   */
+  private _seekHeadEl: EbmlElement | null = null;
+  /**
+   * The Void element that immediately follows the SeekHead (pre-allocated padding),
+   * or `null` if absent.  This space is available for expanding the SeekHead.
+   */
+  private _voidAfterSeekHeadEl: EbmlElement | null = null;
 
   /**
    * Private constructor — use {@link MatroskaFile.open} instead.
@@ -303,6 +315,7 @@ export class MatroskaFile extends File {
     this._segmentSizeVintLength = segment.headSize - idSize(EbmlId.Segment);
 
     const segmentDataOffset = segment.offset + segment.headSize;
+    this._segmentDataOffset = segmentDataOffset;
     // Segment may have "unknown" EBML size (all 1-bits); use fileLength as cap
     const segmentEnd = Math.min(segmentDataOffset + segment.dataSize, fileLength);
 
@@ -321,7 +334,15 @@ export class MatroskaFile extends File {
       if (!el) break;
 
       if (el.id === EbmlId.SeekHead) {
+        this._seekHeadEl = el;
         await this.parseSeekHead(segmentDataOffset, el, elementPositions);
+        // Check if the element immediately after SeekHead is a Void (SeekHead padding)
+        const afterSeekHead = el.offset + el.headSize + el.dataSize;
+        await this._stream.seek(afterSeekHead, Position.Beginning);
+        const maybeVoid = await readElement(this._stream);
+        if (maybeVoid && maybeVoid.id === EbmlId.Void) {
+          this._voidAfterSeekHeadEl = maybeVoid;
+        }
         await skipElement(this._stream, el);
         lastScanPosition = await this._stream.tell();
         continue;

@@ -105,6 +105,9 @@ export function pictureTypeFromString(str: string): AsfPictureType {
   for (const [t, name] of pictureTypeNames) {
     if (name.toLowerCase() === lower) return t;
   }
+  // Also accept numeric strings (e.g. "3" for FrontCover)
+  const n = parseInt(str, 10);
+  if (!isNaN(n) && n >= 0 && n <= 20) return n as AsfPictureType;
   return AsfPictureType.Other;
 }
 

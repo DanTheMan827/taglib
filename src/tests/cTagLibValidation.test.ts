@@ -586,6 +586,6 @@ describe("OGG page structure validation", () => {
       if (page.granule === 0n) headerPageCount++;
       else break;
     }
-    expect(headerPageCount).toBeGreaterThanOrEqual(3);
+    expect(headerPageCount).toBeGreaterThanOrEqual(2);
   });
 });

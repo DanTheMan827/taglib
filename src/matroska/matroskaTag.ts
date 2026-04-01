@@ -421,12 +421,10 @@ export class MatroskaTag extends Tag {
     } else {
       children.push(renderStringElement(EbmlId.TagString, st.value));
     }
-    if (st.language && st.language !== "und") {
-      children.push(renderStringElement(EbmlId.TagLanguage, st.language));
-    }
-    if (!st.defaultLanguageFlag) {
-      children.push(renderUintElement(EbmlId.TagLanguageDefault, 0));
-    }
+    // Always write TagLanguage (default "und"), matching C++ TagLib which always writes it.
+    children.push(renderStringElement(EbmlId.TagLanguage, st.language || "und"));
+    // Always write TagLanguageDefault, matching C++ TagLib.
+    children.push(renderUintElement(EbmlId.TagLanguageDefault, st.defaultLanguageFlag ? 1 : 0));
     return renderEbmlElement(EbmlId.SimpleTag, combineByteVectors(children));
   }
 

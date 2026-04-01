@@ -478,15 +478,10 @@ export class Id3v2Tag extends Tag {
     const MIN_PADDING = 1024;
     const MAX_PADDING = 1024 * 1024;
 
-    // Render all frames in alphabetical frame-ID order, matching C++ TagLib which
-    // uses Map<ByteVector, FrameList> (std::map, lexicographic key order).
+    // Render all frames in insertion order, matching C++ TagLib which iterates
+    // d->frameList (a List<Frame*>) in the order frames were added/parsed.
     const renderedFrames = new ByteVector();
-    const sortedFrames = [...this._frames].sort((a, b) => {
-      const idA = a.header.frameId.toString(StringType.Latin1);
-      const idB = b.header.frameId.toString(StringType.Latin1);
-      return idA < idB ? -1 : idA > idB ? 1 : 0;
-    });
-    for (const frame of sortedFrames) {
+    for (const frame of this._frames) {
       try {
         renderedFrames.append(frame.render(ver));
       } catch {

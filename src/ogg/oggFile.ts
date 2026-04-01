@@ -34,13 +34,16 @@ function oggCrc32(data: Uint8Array): number {
 /**
  * Render OGG pages from a list of header packets.
  *
- * Produces pages with granule position = 0 (correct for header packets).
- * BOS flag is set on the first page. EOS is NOT set (audio pages follow).
- * Returns the rendered bytes and the number of pages generated.
+ * Implements C++ TagLib `Ogg::Page::paginate` behaviour:
+ *   - Packet 0 (identification) always gets its own BOS page.
+ *   - Remaining packets (1..N-1) are paginated together as a group
+ *     using the `SinglePagePerGroup` / `Repaginate` heuristic:
+ *     • If the combined segment-table count ≤ 255, all remaining packets
+ *       are written into ONE page with interleaved lacing values.
+ *     • Otherwise each packet is split independently at
+ *       `SplitSize = 32 × 255 = 8 160` bytes per page (Repaginate).
  *
- * Matches C++ TagLib `Ogg::Page::paginate` with `SplitSize = 32 * 255 = 8160`
- * bytes per page.  Intermediate pages carry exactly 32 lacing values of 255;
- * no terminating lacing byte is written until the final page of each packet.
+ * Returns the rendered bytes and the number of pages generated.
  */
 function renderHeaderPages(
   packets: ByteVector[],
@@ -53,78 +56,106 @@ function renderHeaderPages(
   let totalSize = 0;
   let pageSequence = 0;
 
-  for (let pktIdx = 0; pktIdx < packets.length; pktIdx++) {
-    const pkt = packets[pktIdx];
-    const pktData = pkt.data;
-    const isFirstPacket = pktIdx === 0;
+  /**
+   * Build one OGG page from an already-computed lacing array and the
+   * corresponding data buffer.
+   */
+  function emitPage(
+    headerType: number,
+    lacingValues: number[],
+    pageData: Uint8Array,
+  ): void {
+    const pageSegCount = lacingValues.length;
+    const headerSize = 27 + pageSegCount;
+    const fullPage = new Uint8Array(headerSize + pageData.length);
+    fullPage[0] = 0x4F; fullPage[1] = 0x67; fullPage[2] = 0x67; fullPage[3] = 0x53;
+    fullPage[4] = 0;
+    fullPage[5] = headerType;
+    // Granule position = 0 for all header pages
+    fullPage[14] = serialNumber & 0xFF;
+    fullPage[15] = (serialNumber >> 8) & 0xFF;
+    fullPage[16] = (serialNumber >> 16) & 0xFF;
+    fullPage[17] = (serialNumber >> 24) & 0xFF;
+    fullPage[18] = pageSequence & 0xFF;
+    fullPage[19] = (pageSequence >> 8) & 0xFF;
+    fullPage[20] = (pageSequence >> 16) & 0xFF;
+    fullPage[21] = (pageSequence >> 24) & 0xFF;
+    fullPage[26] = pageSegCount;
+    for (let s = 0; s < pageSegCount; s++) fullPage[27 + s] = lacingValues[s];
+    fullPage.set(pageData, headerSize);
+    const crc = oggCrc32(fullPage);
+    fullPage[22] = crc & 0xFF;
+    fullPage[23] = (crc >> 8) & 0xFF;
+    fullPage[24] = (crc >> 16) & 0xFF;
+    fullPage[25] = (crc >> 24) & 0xFF;
+    chunks.push(fullPage);
+    totalSize += fullPage.length;
+    pageSequence++;
+  }
 
-    let pos = 0;
-    let isFirstPageOfPacket = true;
+  // --- Packet 0: BOS page (always alone) ---
+  if (packets.length > 0) {
+    const pkt0 = packets[0].data;
+    const lacing: number[] = [];
+    const full0 = Math.trunc(pkt0.length / 255);
+    for (let s = 0; s < full0; s++) lacing.push(255);
+    lacing.push(pkt0.length % 255);
+    emitPage(0x02 /* BOS */, lacing, pkt0);
+  }
 
-    do {
-      const chunkSize = Math.min(SPLIT_SIZE, pktData.length - pos);
-      const isLastChunk = pos + chunkSize >= pktData.length;
+  // --- Packets 1..N-1: C++ Page::paginate heuristic ---
+  const remaining = packets.slice(1);
+  if (remaining.length === 0) {
+    const output = new Uint8Array(totalSize);
+    let off = 0;
+    for (const c of chunks) { output.set(c, off); off += c.length; }
+    return { data: output, pageCount: pageSequence };
+  }
 
-      // Build lacing values for this chunk, matching C++ PageHeader::lacingValues():
-      //   • full segments: (chunkSize / 255) lacing values of 0xFF
-      //   • terminal value: (chunkSize % 255) appended only on the LAST chunk of the packet
-      const lacingValues: number[] = [];
-      const fullSegs = Math.trunc(chunkSize / 255);
-      for (let s = 0; s < fullSegs; s++) {
-        lacingValues.push(255);
-      }
-      if (isLastChunk) {
-        // Terminal lacing value marks the end of the packet.
-        lacingValues.push(chunkSize % 255);
-      }
-      // (Intermediate pages carry no terminal lacing value even when chunkSize % 255 == 0)
+  // Calculate total segment-table size for all remaining packets
+  // (C++ formula: accumulate(pkt.size()/255 + 1))
+  let tableSize = 0;
+  for (const pkt of remaining) {
+    tableSize += Math.trunc(pkt.data.length / 255) + 1;
+  }
 
-      const pageSegCount = lacingValues.length;
-      const isContinuation = !isFirstPageOfPacket;
+  if (tableSize <= 255) {
+    // SinglePagePerGroup: all remaining packets in ONE page.
+    // Lacing follows C++ PageHeader::lacingValues():
+    //   for each packet: (size/255)×0xFF then (size%255) as terminal.
+    const lacingValues: number[] = [];
+    const pageData: number[] = [];
+    for (const pkt of remaining) {
+      const data = pkt.data;
+      const full = Math.trunc(data.length / 255);
+      for (let s = 0; s < full; s++) lacingValues.push(255);
+      lacingValues.push(data.length % 255);
+      pageData.push(...data);
+    }
+    emitPage(0x00, lacingValues, new Uint8Array(pageData));
+  } else {
+    // Repaginate: process each packet independently, split at SplitSize.
+    for (const pkt of remaining) {
+      const pktData = pkt.data;
+      let pos = 0;
+      let isFirstPageOfPacket = true;
 
-      let headerType = 0;
-      if (isContinuation) headerType |= 0x01;
-      if (isFirstPacket && !isContinuation) headerType |= 0x02; // BOS on first page of first packet
+      do {
+        const chunkSize = Math.min(SPLIT_SIZE, pktData.length - pos);
+        const isLastChunk = pos + chunkSize >= pktData.length;
 
-      const headerSize = 27 + pageSegCount;
-      const header = new Uint8Array(headerSize);
-      header[0] = 0x4F; header[1] = 0x67; header[2] = 0x67; header[3] = 0x53;
-      header[4] = 0;
-      header[5] = headerType;
-      // Granule position = 0 for all header pages
-      for (let b = 0; b < 8; b++) header[6 + b] = 0;
-      header[14] = serialNumber & 0xFF;
-      header[15] = (serialNumber >> 8) & 0xFF;
-      header[16] = (serialNumber >> 16) & 0xFF;
-      header[17] = (serialNumber >> 24) & 0xFF;
-      header[18] = pageSequence & 0xFF;
-      header[19] = (pageSequence >> 8) & 0xFF;
-      header[20] = (pageSequence >> 16) & 0xFF;
-      header[21] = (pageSequence >> 24) & 0xFF;
-      header[22] = 0; header[23] = 0; header[24] = 0; header[25] = 0;
-      header[26] = pageSegCount;
-      for (let s = 0; s < pageSegCount; s++) {
-        header[27 + s] = lacingValues[s];
-      }
+        const lacingValues: number[] = [];
+        const fullSegs = Math.trunc(chunkSize / 255);
+        for (let s = 0; s < fullSegs; s++) lacingValues.push(255);
+        if (isLastChunk) lacingValues.push(chunkSize % 255);
 
-      const pageData = pktData.slice(pos, pos + chunkSize);
+        const isContinuation = !isFirstPageOfPacket;
+        emitPage(isContinuation ? 0x01 : 0x00, lacingValues, pktData.slice(pos, pos + chunkSize));
 
-      const fullPage = new Uint8Array(headerSize + chunkSize);
-      fullPage.set(header, 0);
-      fullPage.set(pageData, headerSize);
-      const crc = oggCrc32(fullPage);
-      fullPage[22] = crc & 0xFF;
-      fullPage[23] = (crc >> 8) & 0xFF;
-      fullPage[24] = (crc >> 16) & 0xFF;
-      fullPage[25] = (crc >> 24) & 0xFF;
-
-      chunks.push(fullPage);
-      totalSize += fullPage.length;
-
-      pageSequence++;
-      pos += chunkSize;
-      isFirstPageOfPacket = false;
-    } while (pos < pktData.length);
+        pos += chunkSize;
+        isFirstPageOfPacket = false;
+      } while (pos < pktData.length);
+    }
   }
 
   const output = new Uint8Array(totalSize);
