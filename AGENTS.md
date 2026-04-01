@@ -94,6 +94,50 @@ examples/               ← TypeScript usage examples
 - Binary test data lives in `tests/data/`
 - Name tests after the C++ test file they port (e.g., `test_fileref.cpp` → `fileRef.test.ts`)
 
+### Testing Rules and C++ Compatibility
+
+These rules are **mandatory** and must never be violated:
+
+1. **Every C++ test has a TypeScript equivalent.** For every test method in
+   `taglib/tests/test_*.cpp` there must be a corresponding `it(...)` block in
+   the matching TypeScript test file.
+
+2. **Asserted values must match C++ exactly.** If a C++ test asserts
+   `CPPUNIT_ASSERT_EQUAL(1887, f.audioProperties()->lengthInSeconds())`, the
+   TypeScript test must assert `expect(props.lengthInSeconds).toBe(1887)`.
+   Do **not** relax, approximate, or omit expected values.
+
+3. **Never change a test value to make a bad implementation pass.** If the
+   TypeScript output disagrees with the C++ expectation, the implementation
+   must be fixed.  Only change the test itself when the C++ source changed and
+   you have verified the new C++ value.
+
+4. **Byte equality is required for ALL writable formats.** Cross-validation
+   tests in `cTagLibValidation.test.ts` MUST verify byte-for-byte identical
+   output between taglib-ts and C++ TagLib for every format that taglib-ts can
+   write.  Both implementations start from the **same original file**, so
+   format-specific bytes (vendor strings, audio data, etc.) are preserved
+   identically in both outputs.  The only bytes that differ are tag bytes, and
+   those must match exactly.  If bytes differ, fix the TypeScript
+   implementation — **never add `skipByteEquality: true` as a workaround**.
+
+5. **Audio properties must match.** All audio-property fields
+   (`lengthInSeconds`, `lengthInMilliseconds`, `bitrate`, `sampleRate`,
+   `channels`, etc.) returned by a TypeScript `AudioProperties` subclass must
+   equal the values returned by the corresponding C++ `AudioProperties`
+   subclass for the same file.
+
+6. **Cross-validation tests must compare audio properties between
+   implementations.** When a format has audio properties (sample rate, channels,
+   etc.), the cross-validation test must verify that the C++ validator reports
+   the same audio property values for both the C-tagged and TS-tagged outputs.
+
+7. **Tag collection ordering must be deterministic and match C++.** Any
+   tag field collection (ID3v2 frames, XiphComment fields, APEv2 items, MP4
+   items, ASF attributes) must be rendered in **alphabetical key order** to
+   match C++ `TagLib::Map<K, V>` (which uses `std::map` sorted iteration).
+   Insertion-order JavaScript `Map` iteration is NOT acceptable for rendering.
+
 ### Adding a New Format
 
 1. Create `src/<format>/` directory with at minimum:

@@ -215,7 +215,7 @@ const FORMATS: FormatTestCfg[] = [
     ext: ".mp3",
     format: "mp3",
     hasPicture: true,
-    skipByteEquality: true, // ID3v2 padding strategy differs
+    // Byte equality: ID3v2 sorted frames + Latin1 encoding + 1024-byte padding.
   },
   {
     label: "FLAC",
@@ -223,7 +223,8 @@ const FORMATS: FormatTestCfg[] = [
     ext: ".flac",
     format: "flac",
     hasPicture: true,
-    skipByteEquality: true, // Vorbis vendor string differs
+    // Byte equality: vendor string preserved from original file; XiphComment fields
+    // sorted alphabetically + pictures last, matching C++ TagLib.
   },
   {
     label: "OGG Vorbis",
@@ -231,7 +232,8 @@ const FORMATS: FormatTestCfg[] = [
     ext: ".ogg",
     format: "ogg",
     hasPicture: true,
-    skipByteEquality: true, // Vorbis vendor string + page layout
+    // Byte equality: vendor string preserved from original file; XiphComment fields
+    // sorted alphabetically + pictures last, matching C++ TagLib.
   },
   {
     label: "OGG Opus",
@@ -239,7 +241,7 @@ const FORMATS: FormatTestCfg[] = [
     ext: ".opus",
     format: "opus",
     hasPicture: true,
-    skipByteEquality: true,
+    // Byte equality: vendor string preserved from original file.
   },
   {
     label: "OGG Speex",
@@ -247,7 +249,7 @@ const FORMATS: FormatTestCfg[] = [
     ext: ".spx",
     format: "speex",
     hasPicture: true,
-    skipByteEquality: true,
+    // Byte equality: vendor string preserved from original file.
     skipComment: true,
   },
   {
@@ -256,7 +258,7 @@ const FORMATS: FormatTestCfg[] = [
     ext: ".m4a",
     format: "m4a",
     hasPicture: true,
-    skipByteEquality: true, // atom ordering differs (covr vs ©nam first)
+    // Byte equality: MP4 items sorted alphabetically + deterministic padIlst.
   },
   {
     label: "WAV",
@@ -264,8 +266,8 @@ const FORMATS: FormatTestCfg[] = [
     ext: ".wav",
     format: "wav",
     hasPicture: true,
-    skipByteEquality: true, // ID3v2 padding
-    skipComment: true,
+    // Byte equality: ID3v2-only chunk (INFO not auto-created), sorted frames,
+    // Latin1 encoding, 1024-byte padding.
   },
   {
     label: "AIFF",
@@ -273,14 +275,14 @@ const FORMATS: FormatTestCfg[] = [
     ext: ".aiff",
     format: "aiff",
     hasPicture: true,
-    skipByteEquality: true, // ID3v2 padding
+    // Byte equality: ID3v2, sorted frames, Latin1, 1024-byte padding.
   },
   {
     label: "MPC",
     testFile: "click.mpc",
     ext: ".mpc",
     format: "mpc",
-    skipByteEquality: true, // APEv2 item order: C = alphabetical, TS = insertion
+    // Byte equality: APEv2 items sorted alphabetically.
     skipAudioProps: true,
   },
   {
@@ -288,14 +290,14 @@ const FORMATS: FormatTestCfg[] = [
     testFile: "click.wv",
     ext: ".wv",
     format: "wv",
-    skipByteEquality: true,
+    // Byte equality: APEv2 items sorted alphabetically.
   },
   {
     label: "APE",
     testFile: "mac-399.ape",
     ext: ".ape",
     format: "ape",
-    skipByteEquality: true,
+    // Byte equality: APEv2 items sorted alphabetically.
   },
   {
     label: "TrueAudio",
@@ -303,7 +305,7 @@ const FORMATS: FormatTestCfg[] = [
     ext: ".tta",
     format: "tta",
     hasPicture: true,
-    skipByteEquality: true, // ID3v2 padding
+    // Byte equality: ID3v2 sorted frames + Latin1 + 1024-byte padding.
   },
   {
     label: "DSF",
@@ -311,7 +313,7 @@ const FORMATS: FormatTestCfg[] = [
     ext: ".dsf",
     format: "dsf",
     hasPicture: true,
-    skipByteEquality: true, // ID3v2 padding
+    // Byte equality: ID3v2 sorted frames + Latin1 + 1024-byte padding.
   },
   {
     label: "ASF/WMA",
@@ -319,15 +321,14 @@ const FORMATS: FormatTestCfg[] = [
     ext: ".wma",
     format: "asf",
     hasPicture: true,
-    skipByteEquality: true,
-    skipComment: true,
+    // Byte equality: ASF attributes sorted alphabetically, matching C++ TagLib::Map.
   },
   {
     label: "Matroska",
     testFile: "no-tags.mka",
     ext: ".mka",
     format: "mkv",
-    skipByteEquality: true,
+    tsReadOnly: true,
     skipComment: true,
   },
 ];
@@ -370,25 +371,45 @@ describeIfC("taglib-ts → C TagLib: read tags written by taglib-ts", () => {
 
 describeIfC("Audio properties preserved after tagging", () => {
   for (const cfg of FORMATS.filter(f => !f.skipAudioProps)) {
-    it(`${cfg.label}: audio props preserved in C TagLib output`, async () => {
+    it(`${cfg.label}: audio props match between C TagLib and taglib-ts`, async () => {
       const cBytes = tagWithC(cfg.testFile, cfg.ext, cfg.format);
-      const result = validateWithC(cBytes, cfg.ext);
-      if (result.sampleRate !== undefined)
-        expect(result.sampleRate).toBeGreaterThan(0);
-      if (result.channels !== undefined)
-        expect(result.channels).toBeGreaterThan(0);
+      const cResult = validateWithC(cBytes, cfg.ext);
+
+      // Verify C output has valid audio properties
+      if (cResult.sampleRate !== undefined)
+        expect(cResult.sampleRate).toBeGreaterThan(0);
+      if (cResult.channels !== undefined)
+        expect(cResult.channels).toBeGreaterThan(0);
+
+      if (cfg.tsReadOnly) return;
+
+      // Verify TS output has the same audio properties as C
+      const tsBytes = await tagWithTS(cfg.testFile, cfg.ext);
+      const tsResult = validateWithC(tsBytes, cfg.ext);
+
+      // sampleRate and channels must match exactly
+      if (cResult.sampleRate !== undefined && tsResult.sampleRate !== undefined)
+        expect(tsResult.sampleRate).toBe(cResult.sampleRate);
+      if (cResult.channels !== undefined && tsResult.channels !== undefined)
+        expect(tsResult.channels).toBe(cResult.channels);
+      // bitrate and duration are allowed a ±1 tolerance
+      if (cResult.bitrate !== undefined && tsResult.bitrate !== undefined)
+        expect(Math.abs(tsResult.bitrate - cResult.bitrate)).toBeLessThanOrEqual(1);
+      if (cResult.duration !== undefined && tsResult.duration !== undefined)
+        expect(Math.abs(tsResult.duration - cResult.duration)).toBeLessThanOrEqual(1);
     });
 
-    if (!cfg.tsReadOnly) {
-      it(`${cfg.label}: audio props preserved in taglib-ts output`, async () => {
-        const tsBytes = await tagWithTS(cfg.testFile, cfg.ext);
-        const result = validateWithC(tsBytes, cfg.ext);
-        if (result.sampleRate !== undefined)
-          expect(result.sampleRate).toBeGreaterThan(0);
-        if (result.channels !== undefined)
-          expect(result.channels).toBeGreaterThan(0);
-      });
-    }
+    it(`${cfg.label}: taglib-ts reads correct audio props from its own output`, async () => {
+      if (cfg.tsReadOnly) return;
+      const tsBytes = await tagWithTS(cfg.testFile, cfg.ext);
+      const ref = await FileRef.fromByteArray(tsBytes, "test" + cfg.ext);
+      const props = ref.audioProperties();
+      if (!props) return;
+      if (props.sampleRate !== undefined)
+        expect(props.sampleRate).toBeGreaterThan(0);
+      if (props.channels !== undefined)
+        expect(props.channels).toBeGreaterThan(0);
+    });
   }
 });
 

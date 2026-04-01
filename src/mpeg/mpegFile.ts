@@ -128,18 +128,20 @@ export class MpegFile extends File {
   async save(
     tags: MpegTagTypes = MpegTagTypes.AllTags,
     stripTags: StripTags = StripTags.StripOthers,
+    version?: number,
   ): Promise<boolean> {
     if (this.readOnly) return false;
 
-    // Copy metadata between tag formats so both stay in sync.
-    // Skip duplication when the source tag is about to be stripped.
-    if ((tags & MpegTagTypes.ID3v2) && this._id3v1Tag &&
+    // Sync metadata between existing tag formats only when BOTH already exist.
+    // Never auto-create a tag type just to copy data into it — that would write
+    // unwanted tags to clean files (e.g. ID3v1 on a fresh MP3 with only ID3v2).
+    if ((tags & MpegTagTypes.ID3v2) && this._id3v1Tag && this._id3v2Tag &&
       (stripTags !== StripTags.StripOthers || (tags & MpegTagTypes.ID3v1))) {
-      Tag.duplicate(this._id3v1Tag, this.id3v2Tag(true)!, false);
+      Tag.duplicate(this._id3v1Tag, this._id3v2Tag, false);
     }
-    if ((tags & MpegTagTypes.ID3v1) && this._id3v2Tag &&
+    if ((tags & MpegTagTypes.ID3v1) && this._id3v2Tag && this._id3v1Tag &&
       (stripTags !== StripTags.StripOthers || (tags & MpegTagTypes.ID3v2))) {
-      Tag.duplicate(this._id3v2Tag, this.id3v1Tag(true)!, false);
+      Tag.duplicate(this._id3v2Tag, this._id3v1Tag, false);
     }
 
     // Strip tags not in the save mask
@@ -151,7 +153,7 @@ export class MpegFile extends File {
     if (tags & MpegTagTypes.ID3v2) {
       if (this._id3v2Tag && !this._id3v2Tag.isEmpty) {
         if (this._id3v2Location < 0) this._id3v2Location = 0;
-        const data = this._id3v2Tag.render();
+        const data = this._id3v2Tag.render(version);
         await this.insert(data, this._id3v2Location, this._id3v2OriginalSize);
         const sizeDelta = data.length - this._id3v2OriginalSize;
         if (this._apeLocation >= 0) this._apeLocation += sizeDelta;
@@ -200,6 +202,28 @@ export class MpegFile extends File {
   // ---------------------------------------------------------------------------
   // Tag accessors (lazy-create overloads)
   // ---------------------------------------------------------------------------
+
+  /**
+   * Returns `true` if the file contains a physical ID3v2 tag (i.e., one was
+   * found during parsing or has been written by a previous {@link save} call).
+   */
+  get hasID3v2Tag(): boolean {
+    return this._id3v2Location >= 0;
+  }
+
+  /**
+   * Returns `true` if the file contains a physical ID3v1 tag.
+   */
+  get hasID3v1Tag(): boolean {
+    return this._id3v1Location >= 0;
+  }
+
+  /**
+   * Returns `true` if the file contains a physical APEv2 tag.
+   */
+  get hasAPETag(): boolean {
+    return this._apeLocation >= 0;
+  }
 
   /** Get the ID3v1 tag, optionally creating one if absent. */
   id3v1Tag(create?: boolean): ID3v1Tag | null {
@@ -396,9 +420,11 @@ export class MpegFile extends File {
       this._properties = await MpegProperties.create(this, readStyle);
     }
 
-    // Make sure that we have our default tag types available.
+    // Ensure at least an empty ID3v2 tag exists so that writes via the combined tag
+    // (tag.title = "...") have somewhere to go.  Do NOT auto-create ID3v1 or APE;
+    // those are only created explicitly (id3v1Tag(true) / apeTag(true)) to match
+    // C++ TagLib behaviour where tag types are not created unless asked for.
     this.id3v2Tag(true);
-    this.id3v1Tag(true);
 
     // Build combined tag (priority: ID3v2 > APE > ID3v1)
     this.refreshCombinedTag();

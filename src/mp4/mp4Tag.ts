@@ -1100,7 +1100,9 @@ export class Mp4Tag extends Tag {
 
   render(): ByteVector {
     const ilstData = new ByteVector();
-    for (const [name, itm] of this._items) {
+    // Sort items alphabetically to match C++ TagLib::Map<String, Item> iteration order.
+    const sortedItems = [...this._items.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+    for (const [name, itm] of sortedItems) {
       ilstData.append(itm.render(name));
     }
     return renderAtom("ilst", ilstData);
@@ -1108,7 +1110,9 @@ export class Mp4Tag extends Tag {
 
   async save(): Promise<boolean> {
     let ilstData = new ByteVector();
-    for (const [name, itm] of this._items) {
+    // Sort items alphabetically to match C++ TagLib::Map<String, Item> iteration order.
+    const sortedItems = [...this._items.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+    for (const [name, itm] of sortedItems) {
       ilstData.append(itm.render(name));
     }
     ilstData = renderAtom("ilst", ilstData);

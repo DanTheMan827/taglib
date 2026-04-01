@@ -453,12 +453,24 @@ export class XiphComment extends Tag {
       StringType.UTF8,
     );
 
-    // Collect all entries first
+    // Collect all field entries.  To match C++ TagLib's XiphComment::render():
+    //   1. Regular text fields are iterated in sorted (alphabetical) key order,
+    //      matching std::map<String, StringList> iteration order.
+    //   2. METADATA_BLOCK_PICTURE entries are appended last, matching the
+    //      separate d->pictureList written after fieldListMap.
     const entries: ByteVector[] = [];
-    for (const [key, values] of this._fields) {
+    const sortedKeys = [...this._fields.keys()]
+      .filter(k => k !== "METADATA_BLOCK_PICTURE")
+      .sort();
+    for (const key of sortedKeys) {
+      const values = this._fields.get(key)!;
       for (const value of values) {
         entries.push(ByteVector.fromString(`${key}=${value}`, StringType.UTF8));
       }
+    }
+    const picEntries = this._fields.get("METADATA_BLOCK_PICTURE") ?? [];
+    for (const value of picEntries) {
+      entries.push(ByteVector.fromString(`METADATA_BLOCK_PICTURE=${value}`, StringType.UTF8));
     }
 
     // Calculate total size: vendor length(4) + vendor + entry count(4) + entries(length(4) + data each) + optional framing

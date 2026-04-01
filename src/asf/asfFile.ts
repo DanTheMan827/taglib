@@ -418,12 +418,14 @@ export class AsfFile extends File {
       this._headerExtensionObject.objects.push(this._metadataLibraryObject);
     }
 
-    // Distribute attributes across the appropriate objects
+    // Distribute attributes across the appropriate objects.
+    // Sort alphabetically to match C++ TagLib::Map<String, AttributeList> iteration order.
     this._extendedContentDescriptionObject.attributeData = [];
     this._metadataObject.attributeData = [];
     this._metadataLibraryObject.attributeData = [];
 
-    for (const [name, attributes] of this._tag.attributeListMap) {
+    const sortedAttrs = [...this._tag.attributeListMap.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+    for (const [name, attributes] of sortedAttrs) {
       let inExtended = false;
       let inMetadata = false;
 

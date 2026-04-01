@@ -13,12 +13,13 @@ import {
  * Structure: encoding(1) + text (in encoding, multiple values separated by null).
  */
 export class TextIdentificationFrame extends Id3v2Frame {
-  private _encoding: StringType = StringType.UTF8;
+  /** Default encoding matching C++ TagLib FrameFactory: Latin1. */
+  private _encoding: StringType = StringType.Latin1;
   private _fieldList: string[] = [];
   private _rawData: ByteVector | undefined;
   private _rawVersion: number = 4;
 
-  constructor(frameId: ByteVector, encoding: StringType = StringType.UTF8) {
+  constructor(frameId: ByteVector, encoding: StringType = StringType.Latin1) {
     const header = new Id3v2FrameHeader(frameId);
     super(header);
     this._encoding = encoding;
@@ -164,7 +165,7 @@ export class TextIdentificationFrame extends Id3v2Frame {
  * The first field is the description, the rest are values.
  */
 export class UserTextIdentificationFrame extends TextIdentificationFrame {
-  constructor(encoding: StringType = StringType.UTF8) {
+  constructor(encoding: StringType = StringType.Latin1) {
     super(ByteVector.fromString("TXXX", StringType.Latin1), encoding);
   }
 

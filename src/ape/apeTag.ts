@@ -500,7 +500,11 @@ export class ApeTag extends Tag {
    */
   render(): ByteVector {
     const itemData = new ByteVector();
-    for (const it of this._items) {
+    // Sort items alphabetically by key (case-insensitive) to match C++ std::map ordering.
+    const sorted = [...this._items].sort((a, b) =>
+      a.key.toUpperCase().localeCompare(b.key.toUpperCase()),
+    );
+    for (const it of sorted) {
       itemData.append(it.render());
     }
 

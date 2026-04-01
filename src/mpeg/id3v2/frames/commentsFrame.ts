@@ -14,10 +14,10 @@ import {
  * Structure: encoding(1) + language(3) + description(null-terminated) + text.
  */
 export class CommentsFrame extends Id3v2Frame {
-  /** Text encoding used for the description and comment text fields. */
-  private _encoding: StringType = StringType.UTF8;
-  /** Three-byte ISO-639-2 language code (e.g. `"eng"`). */
-  private _language: ByteVector = ByteVector.fromString("XXX", StringType.Latin1);
+  /** Text encoding used for the description and comment text fields. Defaults to Latin1 matching C++ FrameFactory default. */
+  private _encoding: StringType = StringType.Latin1;
+  /** Three-byte ISO-639-2 language code. Defaults to `"eng"` matching C++ TagLib default. */
+  private _language: ByteVector = ByteVector.fromString("eng", StringType.Latin1);
   /** Short content description that distinguishes multiple COMM frames. */
   private _description: string = "";
   /** The actual comment text. */
@@ -26,9 +26,9 @@ export class CommentsFrame extends Id3v2Frame {
   /**
    * Creates a new, empty CommentsFrame.
    * @param encoding - Text encoding to use for description and comment text.
-   *                   Defaults to `StringType.UTF8`.
+   *                   Defaults to `StringType.Latin1` (matching C++ TagLib `FrameFactory` default).
    */
-  constructor(encoding: StringType = StringType.UTF8) {
+  constructor(encoding: StringType = StringType.Latin1) {
     const header = new Id3v2FrameHeader(
       ByteVector.fromString("COMM", StringType.Latin1),
     );

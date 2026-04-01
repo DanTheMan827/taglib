@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { MpegFile } from "../mpeg/mpegFile.js";
+import { ByteVector, StringType } from "../byteVector.js";
+import { MpegFile, MpegTagTypes } from "../mpeg/mpegFile.js";
 import { ByteVectorStream } from "../toolkit/byteVectorStream.js";
-import { ReadStyle } from "../toolkit/types.js";
+import { ReadStyle, StripTags } from "../toolkit/types.js";
 import { openTestStream, readTestData } from "./testHelper.js";
 
 async function openMpegFile(
@@ -208,6 +209,130 @@ describe("MPEG", () => {
       const tag = f2.tag();
       expect(tag?.title).toBe("Test Title");
       expect(tag?.artist).toBe("Test Artist");
+    });
+
+    // testSaveID3v24: save with explicit ID3v2.4 version; re-read version == 4.
+    it("testSaveID3v24: should save and re-read ID3v2.4 tags", async () => {
+      const xxx = "X".repeat(254);
+      const data = readTestData("xing.mp3");
+      const stream = new ByteVectorStream(data);
+
+      let f = await MpegFile.open(stream, true, ReadStyle.Average);
+      expect(f.hasID3v2Tag).toBe(false);
+
+      f.id3v2Tag(true)!.title = xxx;
+      f.id3v2Tag(true)!.artist = "Artist A";
+      await f.save(MpegTagTypes.AllTags, StripTags.StripOthers, 4);
+      expect(f.hasID3v2Tag).toBe(true);
+
+      await stream.seek(0);
+      f = await MpegFile.open(stream, true, ReadStyle.Average);
+      expect(f.id3v2Tag()!.header!.majorVersion).toBe(4);
+      expect(f.tag().artist).toBe("Artist A");
+      expect(f.tag().title).toBe(xxx);
+    });
+
+    // testSaveID3v23: save with explicit ID3v2.3 version; re-read version == 3.
+    it("testSaveID3v23: should save and re-read ID3v2.3 tags", async () => {
+      const xxx = "X".repeat(254);
+      const data = readTestData("xing.mp3");
+      const stream = new ByteVectorStream(data);
+
+      let f = await MpegFile.open(stream, true, ReadStyle.Average);
+      expect(f.hasID3v2Tag).toBe(false);
+
+      f.id3v2Tag(true)!.title = xxx;
+      f.id3v2Tag(true)!.artist = "Artist A";
+      await f.save(MpegTagTypes.AllTags, StripTags.StripOthers, 3);
+      expect(f.hasID3v2Tag).toBe(true);
+
+      await stream.seek(0);
+      f = await MpegFile.open(stream, true, ReadStyle.Average);
+      expect(f.id3v2Tag()!.header!.majorVersion).toBe(3);
+      expect(f.tag().artist).toBe("Artist A");
+      expect(f.tag().title).toBe(xxx);
+    });
+
+    // testRepeatedSave1: large tag + clear + re-save; firstFrameOffset == 5141.
+    it("testRepeatedSave1: firstFrameOffset correct after repeated saves", async () => {
+      const data = readTestData("xing.mp3");
+      const stream = new ByteVectorStream(data);
+
+      let f = await MpegFile.open(stream, true, ReadStyle.Average);
+      f.id3v2Tag(true)!.title = "X".repeat(4096);
+      await f.save();
+
+      await stream.seek(0);
+      f = await MpegFile.open(stream, true, ReadStyle.Average);
+      f.id3v2Tag(true)!.title = "";
+      await f.save();
+      f.id3v2Tag(true)!.title = "X".repeat(4096);
+      await f.save();
+      expect(await f.firstFrameOffset()).toBe(5141);
+    });
+
+    // testRepeatedSave2: two saves of same data; only one ID3 marker at offset 0.
+    it("testRepeatedSave2: no duplicate ID3 header after repeated saves", async () => {
+      const data = readTestData("xing.mp3");
+      const stream = new ByteVectorStream(data);
+
+      const f = await MpegFile.open(stream, true, ReadStyle.Average);
+      f.id3v2Tag(true)!.title = "0123456789";
+      await f.save();
+      await f.save();
+
+      // The second save must not produce a second "ID3" marker inside the file.
+      // C++ asserts: f.find("ID3", 3) == -1  (no ID3 header after offset 0).
+      const bv = stream.data();
+      const tail = bv.mid(3); // skip the first 3 bytes (the valid "ID3" at offset 0)
+      const secondId3 = tail.find(ByteVector.fromString("ID3", StringType.Latin1));
+      expect(secondId3).toBe(-1);
+    });
+
+    // testEmptyID3v2: saving an empty ID3v2 tag must strip the chunk on save.
+    // Matches C++ testEmptyID3v2: save(ID3v2) writes, save(ID3v2,StripNone) strips.
+    it("testEmptyID3v2: saving empty ID3v2 tag removes it from the file", async () => {
+      const data = readTestData("xing.mp3");
+      const stream = new ByteVectorStream(data);
+
+      // Step 1: write ID3v2 with a title
+      let f = await MpegFile.open(stream, true, ReadStyle.Average);
+      f.id3v2Tag(true)!.title = "0123456789";
+      await f.save(MpegTagTypes.ID3v2);
+
+      // Step 2: clear the title, save ID3v2 only (StripNone = leave other tags untouched)
+      await stream.seek(0);
+      f = await MpegFile.open(stream, true, ReadStyle.Average);
+      f.id3v2Tag(true)!.title = "";
+      await f.save(MpegTagTypes.ID3v2, StripTags.StripNone);
+
+      // Step 3: re-read — empty tag must have been removed
+      await stream.seek(0);
+      f = await MpegFile.open(stream, true, ReadStyle.Average);
+      expect(f.hasID3v2Tag).toBe(false);
+    });
+
+    // testEmptyID3v1: ID3v1 tag that is set then cleared must be stripped.
+    // Matches C++ testEmptyID3v1.
+    it("testEmptyID3v1: saving empty ID3v1 tag removes it from the file", async () => {
+      const data = readTestData("xing.mp3");
+      const stream = new ByteVectorStream(data);
+
+      // Step 1: write ID3v1 with a title
+      let f = await MpegFile.open(stream, true, ReadStyle.Average);
+      f.id3v1Tag(true)!.title = "0123456789";
+      await f.save(MpegTagTypes.ID3v1);
+
+      // Step 2: clear the title, save ID3v1 only (StripNone)
+      await stream.seek(0);
+      f = await MpegFile.open(stream, true, ReadStyle.Average);
+      f.id3v1Tag(true)!.title = "";
+      await f.save(MpegTagTypes.ID3v1, StripTags.StripNone);
+
+      // Step 3: re-read — empty tag must have been removed
+      await stream.seek(0);
+      f = await MpegFile.open(stream, true, ReadStyle.Average);
+      expect(f.hasID3v1Tag).toBe(false);
     });
   });
 });

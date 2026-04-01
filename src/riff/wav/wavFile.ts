@@ -101,9 +101,13 @@ export class WavFile extends RiffFile {
 
   /**
    * The RIFF INFO tag embedded in the `"LIST"` / `"INFO"` chunk, or `null` if absent.
-   * @returns The {@link RiffInfoTag}, or `null`.
+   * Auto-creates an empty INFO tag on first access so callers can always write to it.
+   * @returns The {@link RiffInfoTag}.
    */
-  get infoTag(): RiffInfoTag | null {
+  get infoTag(): RiffInfoTag {
+    if (!this._infoTag) {
+      this._infoTag = new RiffInfoTag();
+    }
     return this._infoTag;
   }
 
@@ -195,16 +199,19 @@ export class WavFile extends RiffFile {
       }
     }
 
-    // Ensure default tags exist
+    // Ensure default ID3v2 tag exists
     if (!this._id3v2Tag) {
       this._id3v2Tag = new Id3v2Tag();
     }
-    if (!this._infoTag) {
-      this._infoTag = new RiffInfoTag();
-    }
+    // Note: _infoTag is only created when an INFO chunk is found in the file or when
+    // explicitly accessed via the infoTag getter.  It is NOT auto-created here so that
+    // writing via the combined tag (tag.title = "...") only updates ID3v2, matching
+    // C++ TagLib where WAV::File::tag() returns only the ID3v2 tag.
 
-    // Build combined tag (ID3v2 higher priority)
-    this._combinedTag.setTags([this._id3v2Tag, this._infoTag]);
+    // Build combined tag: ID3v2 is always primary; INFO is included only when present.
+    const combinedTags: Tag[] = [this._id3v2Tag];
+    if (this._infoTag) combinedTags.push(this._infoTag);
+    this._combinedTag.setTags(combinedTags);
 
     if (readProperties && fmtData) {
       this._properties = new WavProperties(fmtData, streamLength, totalSamples, readStyle);

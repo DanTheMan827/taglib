@@ -40,8 +40,8 @@ export enum PictureType {
  *            + description(null-terminated in encoding) + pictureData.
  */
 export class AttachedPictureFrame extends Id3v2Frame {
-  /** Text encoding used for the description field. */
-  private _encoding: StringType = StringType.UTF8;
+  /** Text encoding used for the description field. Defaults to Latin1 matching C++ FrameFactory default. */
+  private _encoding: StringType = StringType.Latin1;
   /** MIME type of the embedded image (e.g. `"image/jpeg"`). */
   private _mimeType: string = "";
   /** Semantic role of the picture within the tag. */
@@ -54,9 +54,9 @@ export class AttachedPictureFrame extends Id3v2Frame {
   /**
    * Creates a new, empty AttachedPictureFrame.
    * @param encoding - Text encoding to use for the description field.
-   *                   Defaults to `StringType.UTF8`.
+   *                   Defaults to `StringType.Latin1` (matching C++ TagLib `FrameFactory` default).
    */
-  constructor(encoding: StringType = StringType.UTF8) {
+  constructor(encoding: StringType = StringType.Latin1) {
     const header = new Id3v2FrameHeader(
       ByteVector.fromString("APIC", StringType.Latin1),
     );
