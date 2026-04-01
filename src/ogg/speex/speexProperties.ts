@@ -21,12 +21,14 @@ const SPEEX_HEADER = ByteVector.fromString("Speex   ", StringType.Latin1);
 export class SpeexProperties extends AudioProperties {
   /** Stream duration in milliseconds, computed from first and last granule positions. */
   private _lengthInMs: number = 0;
-  /** Average bitrate in kilobits per second, or header bitrate as a fallback. */
+  /** Average bitrate in kilobits per second, computed from stream data. */
   private _bitrate: number = 0;
   /** Sample rate in Hz as declared in the Speex identification header. */
   private _sampleRate: number = 0;
   /** Number of audio channels as declared in the Speex identification header. */
   private _channels: number = 0;
+  /** Nominal bitrate from the Speex header in bits per second; `-1` for VBR, `0` if unset. */
+  private _bitrateNominal: number = 0;
 
   /**
    * Constructs a SpeexProperties instance with the given read style.
@@ -60,7 +62,7 @@ export class SpeexProperties extends AudioProperties {
     return this._lengthInMs;
   }
 
-  /** Average bitrate in kilobits per second, or the header bitrate as a fallback. */
+  /** Average bitrate in kilobits per second, computed from audio data size and duration. */
   override get bitrate(): number {
     return this._bitrate;
   }
@@ -73,6 +75,14 @@ export class SpeexProperties extends AudioProperties {
   /** Number of audio channels as declared in the Speex identification header. */
   get channels(): number {
     return this._channels;
+  }
+
+  /**
+   * Nominal bitrate from the Speex header in bits per second.
+   * `-1` indicates variable-bitrate (VBR); `0` indicates not set.
+   */
+  get bitrateNominal(): number {
+    return this._bitrateNominal;
   }
 
   // ---------------------------------------------------------------------------
@@ -101,32 +111,39 @@ export class SpeexProperties extends AudioProperties {
     // 52: bitrate, 56: frameSize, 60: vbr, 64: framesPerPacket
     this._sampleRate = data.toUInt(36, false);
     this._channels = data.toUInt(48, false);
-    const headerBitrate = data.toInt(52, false);
+    // bitrateNominal: from header; -1 = VBR, 0 = not specified.
+    this._bitrateNominal = data.toInt(52, false);
 
-    // Compute duration from granule positions
+    // Compute duration from granule positions.
+    // Matches C++: subtracts 2 header packet sizes from file length for bitrate.
     if (this._sampleRate > 0) {
       const first = await file.firstPageHeader();
       const last = await file.lastPageHeader();
 
       if (first && last) {
-        const totalSamples = last.granulePosition - first.granulePosition;
-        if (totalSamples > 0n) {
-          const durationMs =
-            Number(totalSamples) * 1000.0 / this._sampleRate;
-          this._lengthInMs = Math.round(durationMs);
+        const frameCount = last.granulePosition - first.granulePosition;
+        if (frameCount > 0n) {
+          const durationMs = Number(frameCount) * 1000.0 / this._sampleRate;
+          this._lengthInMs = Math.trunc(durationMs + 0.5);
 
-          const streamLength = await file.fileLength();
+          // Subtract the 2 Speex header packets from the file size.
+          let fileLengthWithoutOverhead = await file.fileLength();
+          for (let i = 0; i < 2; i++) {
+            const pkt = await file.packet(i);
+            fileLengthWithoutOverhead -= pkt.length;
+          }
+
           if (this._lengthInMs > 0) {
-            this._bitrate = Math.round(
-              (streamLength * 8.0) / durationMs,
+            this._bitrate = Math.trunc(
+              (fileLengthWithoutOverhead * 8.0) / durationMs + 0.5,
             );
           }
         }
       }
 
-      // Fall back to header bitrate
-      if (this._bitrate === 0 && headerBitrate > 0) {
-        this._bitrate = Math.round(headerBitrate / 1000);
+      // Fall back to header bitrate (positive values only).
+      if (this._bitrate === 0 && this._bitrateNominal > 0) {
+        this._bitrate = Math.trunc(this._bitrateNominal / 1000.0 + 0.5);
       }
     }
   }

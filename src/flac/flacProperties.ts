@@ -119,8 +119,10 @@ export class FlacProperties extends AudioProperties {
     if (this._sampleFrames > 0n && this._sampleRate > 0) {
       const length =
         Number(this._sampleFrames) * 1000.0 / this._sampleRate;
-      this._lengthInMs = Math.round(length);
-      this._bitrate = Math.round((streamLength * 8.0) / length);
+      this._lengthInMs = Math.trunc(length + 0.5);
+      this._bitrate = streamLength > 0
+        ? Math.trunc((streamLength * 8.0) / length + 0.5)
+        : 0;
     }
 
     if (data.length >= pos + 16) {

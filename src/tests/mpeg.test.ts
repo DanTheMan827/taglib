@@ -15,6 +15,57 @@ async function openMpegFile(
 
 describe("MPEG", () => {
   describe("basic properties", () => {
+    it("should read Xing header CBR audio properties", async () => {
+      const f = await openMpegFile("lame_cbr.mp3");
+      expect(f.isValid).toBe(true);
+      const props = f.audioProperties();
+      expect(props).not.toBeNull();
+      expect(props?.lengthInSeconds).toBe(1887);
+      expect(props?.lengthInMilliseconds).toBe(1887164);
+      expect(props?.bitrate).toBe(64);
+      expect(props?.channels).toBe(1);
+      expect(props?.sampleRate).toBe(44100);
+      expect(props?.isADTS).toBe(false);
+    });
+
+    it("should read Xing header VBR audio properties", async () => {
+      const f = await openMpegFile("lame_vbr.mp3");
+      expect(f.isValid).toBe(true);
+      const props = f.audioProperties();
+      expect(props).not.toBeNull();
+      expect(props?.lengthInSeconds).toBe(1887);
+      expect(props?.lengthInMilliseconds).toBe(1887164);
+      expect(props?.bitrate).toBe(70);
+      expect(props?.channels).toBe(1);
+      expect(props?.sampleRate).toBe(44100);
+      expect(props?.isADTS).toBe(false);
+    });
+
+    it("should read VBRI header audio properties", async () => {
+      const f = await openMpegFile("rare_frames.mp3");
+      expect(f.isValid).toBe(true);
+      const props = f.audioProperties();
+      expect(props).not.toBeNull();
+      expect(props?.lengthInSeconds).toBe(222);
+      expect(props?.lengthInMilliseconds).toBe(222198);
+      expect(props?.bitrate).toBe(233);
+      expect(props?.channels).toBe(2);
+      expect(props?.sampleRate).toBe(44100);
+      expect(props?.isADTS).toBe(false);
+    });
+
+    it("should read no-VBR-headers audio properties", async () => {
+      const f = await openMpegFile("bladeenc.mp3");
+      expect(f.isValid).toBe(true);
+      const props = f.audioProperties();
+      expect(props).not.toBeNull();
+      // bladeenc.mp3: no VBR headers, length computed from file size
+      expect(props?.bitrate).toBe(64);
+      expect(props?.channels).toBe(1);
+      expect(props?.sampleRate).toBe(44100);
+      expect(props?.isADTS).toBe(false);
+    });
+
     it("should read xing VBR file", async () => {
       const f = await openMpegFile("xing.mp3");
       expect(f.isValid).toBe(true);
@@ -27,32 +78,13 @@ describe("MPEG", () => {
       }
     });
 
-    it("should read lame CBR file", async () => {
-      const f = await openMpegFile("lame_cbr.mp3");
-      expect(f.isValid).toBe(true);
-      const props = f.audioProperties();
-      expect(props).not.toBeNull();
-      if (props) {
-        expect(props.sampleRate).toBe(44100);
-        expect(props.channels).toBeGreaterThanOrEqual(1);
-      }
-    });
-
-    it("should read lame VBR file", async () => {
-      const f = await openMpegFile("lame_vbr.mp3");
-      expect(f.isValid).toBe(true);
-      const props = f.audioProperties();
-      expect(props).not.toBeNull();
-    });
-
-    it("should read mpeg2 file", async () => {
+    it("should read MPEG2 duration with Xing header", async () => {
       const f = await openMpegFile("mpeg2.mp3");
       expect(f.isValid).toBe(true);
-    });
-
-    it("should read bladeenc file", async () => {
-      const f = await openMpegFile("bladeenc.mp3");
-      expect(f.isValid).toBe(true);
+      const props = f.audioProperties();
+      expect(props).not.toBeNull();
+      expect(props?.lengthInSeconds).toBe(5387);
+      expect(props?.lengthInMilliseconds).toBe(5387285);
     });
   });
 
@@ -92,12 +124,31 @@ describe("MPEG", () => {
     });
 
     it("should read duplicate ID3v2 tags", async () => {
+      // duplicate_id3v2.mp3 has duplicate ID3v2 tags.
+      // Sample rate will be 32000 if can't skip the second tag.
       const f = await openMpegFile("duplicate_id3v2.mp3");
       expect(f.isValid).toBe(true);
+      expect(f.id3v2Tag).not.toBeNull();
+      expect(f.audioProperties()?.sampleRate).toBe(44100);
     });
   });
 
   describe("frame scanning", () => {
+    it("should find frame offsets for ape.mp3", async () => {
+      const f = await openMpegFile("ape.mp3");
+      expect(f.isValid).toBe(true);
+      expect(await f.firstFrameOffset()).toBeGreaterThanOrEqual(0);
+      expect(await f.lastFrameOffset()).toBeGreaterThanOrEqual(0);
+    });
+
+    it("should find frame offsets for ape-id3v2.mp3", async () => {
+      const f = await openMpegFile("ape-id3v2.mp3");
+      expect(f.isValid).toBe(true);
+      const first = await f.firstFrameOffset();
+      expect(first).toBeGreaterThan(0); // after ID3v2 tag
+      expect(await f.lastFrameOffset()).toBeGreaterThan(first);
+    });
+
     it("should find first frame offset", async () => {
       const f = await openMpegFile("xing.mp3");
       const offset = await f.firstFrameOffset();

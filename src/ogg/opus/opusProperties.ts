@@ -122,26 +122,37 @@ export class OpusProperties extends AudioProperties {
 
     this._opusVersion = data.get(8);
     this._channels = data.get(9);
-    // preSkip at offset 10 (2 bytes LE) — used for duration calculation
+    const preSkip = data.toUShort(10, false);
     this._inputSampleRate = data.toUInt(12, false);
-    // outputGain at offset 16 (2 bytes signed LE)
     this._outputGain = data.toShort(16, false);
 
-    // Compute duration from granule positions (Opus uses 48 kHz granule clock)
+    // Compute duration from granule positions (Opus uses 48 kHz granule clock).
+    // Matches C++: subtracts preSkip and 2 mandatory header packet sizes.
     const first = await file.firstPageHeader();
     const last = await file.lastPageHeader();
 
     if (first && last) {
-      const totalSamples = last.granulePosition - first.granulePosition;
-      if (totalSamples > 0n) {
-        const durationMs = Number(totalSamples) * 1000.0 / 48000;
-        this._lengthInMs = Math.round(durationMs);
+      const start = first.granulePosition;
+      const end = last.granulePosition;
 
-        const streamLength = await file.fileLength();
-        if (this._lengthInMs > 0) {
-          this._bitrate = Math.round(
-            (streamLength * 8.0) / durationMs,
-          );
+      if (start >= 0n && end >= 0n) {
+        const frameCount = end - start - BigInt(preSkip);
+        if (frameCount > 0n) {
+          const durationMs = Number(frameCount) * 1000.0 / 48000.0;
+          this._lengthInMs = Math.trunc(durationMs + 0.5);
+
+          // Subtract the 2 mandatory Opus header packets from file length.
+          let fileLengthWithoutOverhead = await file.fileLength();
+          for (let i = 0; i < 2; i++) {
+            const pkt = await file.packet(i);
+            fileLengthWithoutOverhead -= pkt.length;
+          }
+
+          if (this._lengthInMs > 0) {
+            this._bitrate = Math.trunc(
+              (fileLengthWithoutOverhead * 8.0) / durationMs + 0.5,
+            );
+          }
         }
       }
     }

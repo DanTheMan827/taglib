@@ -139,31 +139,37 @@ export class VorbisProperties extends AudioProperties {
     this._bitrateNominal = data.toInt(20, false);
     this._bitrateMinimum = data.toInt(24, false);
 
-    // Compute duration from granule positions of first and last pages
+    // Compute duration from granule positions of first and last pages.
+    // Matches C++: subtracts 3 initial header packet sizes from file length for bitrate.
     if (this._sampleRate > 0) {
       const first = await file.firstPageHeader();
       const last = await file.lastPageHeader();
 
       if (first && last) {
-        const totalSamples = last.granulePosition - first.granulePosition;
-        if (totalSamples > 0n) {
-          const durationMs =
-            Number(totalSamples) * 1000.0 / this._sampleRate;
-          this._lengthInMs = Math.round(durationMs);
+        const frameCount = last.granulePosition - first.granulePosition;
+        if (frameCount > 0n) {
+          const durationMs = Number(frameCount) * 1000.0 / this._sampleRate;
+          this._lengthInMs = Math.trunc(durationMs + 0.5);
 
-          // Compute average bitrate from stream length
-          const streamLength = await file.fileLength();
+          // Subtract the 3 Vorbis header packets (identification, comment, setup)
+          // from the file size before computing bitrate, matching C++ behaviour.
+          let fileLengthWithoutOverhead = await file.fileLength();
+          for (let i = 0; i < 3; i++) {
+            const pkt = await file.packet(i);
+            fileLengthWithoutOverhead -= pkt.length;
+          }
+
           if (this._lengthInMs > 0) {
-            this._bitrate = Math.round(
-              (streamLength * 8.0) / durationMs,
+            this._bitrate = Math.trunc(
+              (fileLengthWithoutOverhead * 8.0) / durationMs + 0.5,
             );
           }
         }
       }
 
-      // Fall back to nominal bitrate if we couldn't compute one
+      // Fall back to nominal bitrate if we couldn't compute one.
       if (this._bitrate === 0 && this._bitrateNominal > 0) {
-        this._bitrate = Math.round(this._bitrateNominal / 1000);
+        this._bitrate = Math.trunc(this._bitrateNominal / 1000.0 + 0.5);
       }
     }
   }

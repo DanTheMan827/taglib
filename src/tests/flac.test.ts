@@ -29,11 +29,20 @@ describe("FLAC", () => {
     }
   });
 
-  it("should read sinewave file", async () => {
+  it("should read sinewave file audio properties", async () => {
     const f = await openFlacFile("sinewave.flac");
     expect(f.isValid).toBe(true);
     const props = f.audioProperties();
     expect(props).not.toBeNull();
+    expect(props?.lengthInSeconds).toBe(3);
+    expect(props?.lengthInMilliseconds).toBe(3550);
+    expect(props?.bitrate).toBe(145);
+    expect(props?.sampleRate).toBe(44100);
+    expect(props?.channels).toBe(2);
+    expect(props?.bitsPerSample).toBe(16);
+    expect(props?.sampleFrames).toBe(156556n);
+    // MD5 signature of the uncompressed audio stream
+    expect(props?.signature?.length).toBe(16);
   });
 
   it("should read no-tags file", async () => {
