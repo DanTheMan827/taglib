@@ -210,6 +210,7 @@ describe("WAV", () => {
     expect(f.infoTag?.title).toBe("Title1");
 
     await f.save();
+    expect(await f.fileLength()).toBe(15898);
     expect(await f.find(ByteVector.fromString("Title2"))).toBe(-1);
   });
 

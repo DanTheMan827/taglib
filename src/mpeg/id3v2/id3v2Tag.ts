@@ -458,13 +458,25 @@ export class Id3v2Tag extends Tag {
   // ---------------------------------------------------------------------------
 
   /**
-   * Render the complete ID3v2 tag (header + all frames + optional footer) to a `ByteVector`.
+   * Render the complete ID3v2 tag (header + all frames + padding + optional footer) to a `ByteVector`.
+   *
+   * Padding strategy matches C++ TagLib:
+   * - Minimum padding is always 1024 bytes.
+   * - When an existing tag is being re-written and its frames still fit within
+   *   the original allocated space, the original padding is preserved — but
+   *   capped at `max(1024, fileSize / 100)` to avoid unbounded growth.
+   *   Since we don't have file-size context here the cap is fixed at 1024.
+   * - When the new frames exceed the original allocated space (or when there
+   *   is no original tag), exactly 1024 bytes of padding are appended.
    *
    * @param version - The ID3v2 major version to render as; defaults to the tag's current version.
+   * @param fileSize - Optional file size used for the 1% padding threshold (default: 0).
    * @returns The serialised tag bytes.
    */
-  render(version?: number): ByteVector {
+  render(version?: number, fileSize: number = 0): ByteVector {
     const ver = version ?? this._header.majorVersion;
+    const MIN_PADDING = 1024;
+    const MAX_PADDING = 1024 * 1024;
 
     // Render all frames
     const renderedFrames = new ByteVector();
@@ -476,14 +488,33 @@ export class Id3v2Tag extends Tag {
       }
     }
 
-    // Build header
+    // Compute padding matching C++ TagLib id3v2tag.cpp:
+    //   long paddingSize = originalSize - framesSize;
+    //   if (paddingSize <= 0) paddingSize = MinPaddingSize;
+    //   else { cap at max(1%, 1024) }
+    const originalSize = this._header.tagSize; // 0 for new (never-read) tags
+    let paddingSize = originalSize - renderedFrames.length;
+    if (paddingSize <= 0) {
+      paddingSize = MIN_PADDING;
+    } else {
+      const threshold = Math.min(
+        Math.max(fileSize > 0 ? Math.trunc(fileSize / 100) : 0, MIN_PADDING),
+        MAX_PADDING,
+      );
+      if (paddingSize > threshold) {
+        paddingSize = MIN_PADDING;
+      }
+    }
+
+    // Build header with size = frames + padding
     const header = new Id3v2Header();
     header.majorVersion = ver;
-    header.tagSize = renderedFrames.length;
+    header.tagSize = renderedFrames.length + paddingSize;
 
     const result = new ByteVector();
     result.append(header.render());
     result.append(renderedFrames);
+    result.resize(result.length + paddingSize, 0);
 
     // Append footer for v2.4 with footer flag
     if (ver === 4 && this._header.footerPresent) {

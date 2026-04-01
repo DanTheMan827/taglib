@@ -102,9 +102,7 @@ describe("AIFF", () => {
     expect(f.tag()?.title).toBe("Title1");
     await f.save();
 
-    // C++ produces 7030 bytes (preserves 1024-byte ID3v2 padding).
-    // TypeScript renders compact tags without padding, so 6006 bytes.
-    expect(await f.fileLength()).toBe(6006);
+    expect(await f.fileLength()).toBe(7030);
     expect(await f.find(ByteVector.fromString("Title2"))).toBe(-1);
   });
 
