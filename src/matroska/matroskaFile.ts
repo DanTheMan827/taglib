@@ -340,7 +340,7 @@ export class MatroskaFile extends File {
         const afterSeekHead = el.offset + el.headSize + el.dataSize;
         await this._stream.seek(afterSeekHead, Position.Beginning);
         const maybeVoid = await readElement(this._stream);
-        if (maybeVoid && maybeVoid.id === EbmlId.Void) {
+        if (maybeVoid && maybeVoid.id === EbmlId.VoidElement) {
           this._voidAfterSeekHeadEl = maybeVoid;
         }
         await skipElement(this._stream, el);

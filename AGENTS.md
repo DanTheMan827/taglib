@@ -138,6 +138,26 @@ These rules are **mandatory** and must never be violated:
    match C++ `TagLib::Map<K, V>` (which uses `std::map` sorted iteration).
    Insertion-order JavaScript `Map` iteration is NOT acceptable for rendering.
 
+8. **All tests must pass at all times.** Every `it(...)` block in every test
+   file must pass before changes are merged.  Running the full suite with
+   `npx vitest run` must report zero failures (tests that require the C
+   validators are automatically skipped when the validators are not built).
+   Never disable or skip a test to hide a failure — fix the implementation.
+
+9. **Format parity with C++ is mandatory.** Every audio container format that
+   C++ TagLib supports must have a corresponding TypeScript implementation in
+   taglib-ts:
+   - **Read support:** If C++ can read a format, TypeScript must also be able
+     to read it with the same data.
+   - **Write support:** If C++ can write a format, TypeScript must also be able
+     to write it.  A cross-validation test in `cTagLibValidation.test.ts` MUST
+     exist for every writable format, verifying byte-for-byte identical output
+     between the two implementations.
+   - Adding a new format to taglib-ts automatically requires a cross-validation
+     entry.  Adding a format as read-only (`tsReadOnly: true`) is only
+     acceptable when write support has not yet been implemented; the format
+     must eventually be made writable and byte-equal.
+
 ### Adding a New Format
 
 1. Create `src/<format>/` directory with at minimum:
