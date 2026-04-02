@@ -36,6 +36,7 @@
 #include <taglib/mp4coverart.h>
 #include <taglib/mpcfile.h>
 #include <taglib/mpegfile.h>
+#include <taglib/oggflacfile.h>
 #include <taglib/opusfile.h>
 #include <taglib/speexfile.h>
 #include <taglib/tag.h>
@@ -167,6 +168,12 @@ static std::vector<PictureInfo> getPictures(const std::string &path, const std::
   } else if (ext == ".dsf") {
     TagLib::DSF::File f(path.c_str());
     if (f.isValid()) addAPIC(f.tag());
+  } else if (ext == ".dff") {
+    TagLib::DSDIFF::File f(path.c_str());
+    if (f.isValid() && f.hasID3v2Tag()) addAPIC(f.ID3v2Tag());
+  } else if (ext == ".oga") {
+    TagLib::OggFlac::File f(path.c_str());
+    if (f.isValid()) addXiphPic(f.tag());
   } else if (ext == ".asf" || ext == ".wma") {
     TagLib::ASF::File f(path.c_str());
     if (f.isValid() && f.tag()) {

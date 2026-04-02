@@ -324,6 +324,22 @@ const FORMATS: FormatTestCfg[] = [
     // Byte equality: ASF attributes sorted alphabetically, matching C++ TagLib::Map.
   },
   {
+    label: "DSDIFF",
+    testFile: "empty10ms.dff",
+    ext: ".dff",
+    format: "dff",
+    hasPicture: true,
+    // Byte equality: DSDIFF writes ID3v2 tags, matching C++ DSDIFF::File::save().
+  },
+  {
+    label: "OGG FLAC",
+    testFile: "empty_flac.oga",
+    ext: ".oga",
+    format: "oggflac",
+    hasPicture: true,
+    // Byte equality: XiphComment fields sorted alphabetically + pictures last.
+  },
+  {
     label: "Matroska",
     testFile: "no-tags.mka",
     ext: ".mka",

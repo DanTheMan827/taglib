@@ -5,7 +5,7 @@
  * Used for bidirectional cross-validation with taglib-ts.
  *
  * Usage: tag_with_c_full <input> <output> <format>
- *   format: mp3, flac, ogg, opus, speex, m4a, wav, aiff, mpc, wv, ape, tta, dsf, asf, mkv
+ *   format: mp3, flac, ogg, oggflac, opus, speex, m4a, wav, aiff, mpc, wv, ape, tta, dsf, dff, asf, mkv
  *
  * Tags written:
  *   title   = "Cross-Validation Test"
@@ -44,6 +44,7 @@
 #include <taglib/mp4tag.h>
 #include <taglib/mpcfile.h>
 #include <taglib/mpegfile.h>
+#include <taglib/oggflacfile.h>
 #include <taglib/opusfile.h>
 #include <taglib/speexfile.h>
 #include <taglib/tag.h>
@@ -230,6 +231,23 @@ static bool tagDSF(const std::string &path) {
   return f.save();
 }
 
+static bool tagDSDIFF(const std::string &path) {
+  TagLib::DSDIFF::File f(path.c_str());
+  if (!f.isValid()) return false;
+  applyBasicTags(f.tag());
+  f.ID3v2Tag(true)->addFrame(makeAPICFrame());
+  return f.save();
+}
+
+static bool tagOGGFlac(const std::string &path) {
+  TagLib::OggFlac::File f(path.c_str());
+  if (!f.isValid()) return false;
+  applyBasicTags(f.tag());
+  f.tag()->removeAllPictures();
+  f.tag()->addPicture(makeFLACPicture());
+  return f.save();
+}
+
 static bool tagASF(const std::string &path) {
   TagLib::ASF::File f(path.c_str());
   if (!f.isValid() || !f.tag()) return false;
@@ -254,7 +272,7 @@ static bool tagMatroska(const std::string &path) {
 int main(int argc, char *argv[]) {
   if (argc < 4) {
     std::cerr << "Usage: tag_with_c_full <input> <output> <format>" << std::endl;
-    std::cerr << "  format: mp3|flac|ogg|opus|speex|m4a|wav|aiff|mpc|wv|ape|tta|dsf|asf|mkv" << std::endl;
+    std::cerr << "  format: mp3|flac|ogg|oggflac|opus|speex|m4a|wav|aiff|mpc|wv|ape|tta|dsf|dff|asf|mkv" << std::endl;
     return 1;
   }
 
@@ -275,6 +293,7 @@ int main(int argc, char *argv[]) {
   if (format == "mp3")                             ok = tagMP3(output);
   else if (format == "flac")                       ok = tagFLAC(output);
   else if (format == "ogg")                        ok = tagOGGVorbis(output);
+  else if (format == "oggflac")                    ok = tagOGGFlac(output);
   else if (format == "opus")                       ok = tagOGGOpus(output);
   else if (format == "speex" || format == "spx")  ok = tagOGGSpeex(output);
   else if (format == "m4a" || format == "mp4" ||
@@ -286,6 +305,7 @@ int main(int argc, char *argv[]) {
   else if (format == "ape")                        ok = tagAPE(output);
   else if (format == "tta")                        ok = tagTTA(output);
   else if (format == "dsf")                        ok = tagDSF(output);
+  else if (format == "dff" || format == "dsdiff") ok = tagDSDIFF(output);
   else if (format == "asf" || format == "wma")    ok = tagASF(output);
   else if (format == "mkv" || format == "mka" ||
            format == "webm")                       ok = tagMatroska(output);
