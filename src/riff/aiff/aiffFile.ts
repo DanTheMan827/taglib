@@ -21,6 +21,8 @@ export class AiffFile extends RiffFile {
   private _properties: AiffProperties | null = null;
   /** ID3v2 tag read from the `"ID3 "` chunk, or `null` if absent. */
   private _id3v2Tag: Id3v2Tag | null = null;
+  /** Whether an ID3v2 chunk was found on disk during parsing. */
+  private _hasId3v2Tag: boolean = false;
 
   /**
    * Private constructor — use {@link AiffFile.open} to create instances.
@@ -77,6 +79,14 @@ export class AiffFile extends RiffFile {
   }
 
   /**
+   * Whether the file contained an ID3v2 chunk when it was opened.
+   * @returns `true` if an `"ID3 "` chunk was found during parsing.
+   */
+  get hasId3v2Tag(): boolean {
+    return this._hasId3v2Tag;
+  }
+
+  /**
    * Writes all pending tag changes back to the underlying stream.
    * Matches C++ behavior: always removes all existing ID3 chunks first,
    * then re-appends a fresh `"ID3 "` chunk if the tag is non-empty.
@@ -123,6 +133,7 @@ export class AiffFile extends RiffFile {
           this._stream,
           this.chunkOffset(i),
         );
+        this._hasId3v2Tag = true;
       }
     }
 

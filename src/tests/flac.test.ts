@@ -74,7 +74,7 @@ describe("FLAC", () => {
   it("should read Xiph Comment", async () => {
     // C++: test_flac.cpp – TestFLAC::testDict
     const f = await openFlacFile("silence-44-s.flac");
-    expect(f.xiphComment).not.toBeNull();
+    expect(f.xiphComment()).not.toBeNull();
   });
 
   it("should access pictures", async () => {
@@ -91,18 +91,18 @@ describe("FLAC", () => {
     const stream = new ByteVectorStream(data);
     const f = await FlacFile.open(stream, true, ReadStyle.Average);
 
-    if (f.isValid && f.xiphComment) {
-      f.xiphComment.title = "FLAC Test";
-      f.xiphComment.artist = "Test Artist";
+    if (f.isValid && f.xiphComment()) {
+      f.xiphComment()!.title = "FLAC Test";
+      f.xiphComment()!.artist = "Test Artist";
       await f.save();
     }
 
     // Re-read
     await stream.seek(0);
     const f2 = await FlacFile.open(stream, true, ReadStyle.Average);
-    if (f2.isValid && f2.xiphComment) {
-      expect(f2.xiphComment.title).toBe("FLAC Test");
-      expect(f2.xiphComment.artist).toBe("Test Artist");
+    if (f2.isValid && f2.xiphComment()) {
+      expect(f2.xiphComment()!.title).toBe("FLAC Test");
+      expect(f2.xiphComment()!.artist).toBe("Test Artist");
     }
   });
 

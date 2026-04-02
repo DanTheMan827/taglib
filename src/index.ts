@@ -57,7 +57,7 @@ export { MpegProperties } from "./mpeg/mpegProperties.js";
 export { XingHeader, XingHeaderType } from "./mpeg/xingHeader.js";
 
 // FLAC
-export { FlacFile } from "./flac/flacFile.js";
+export { FlacFile, FlacTagTypes } from "./flac/flacFile.js";
 export { FlacProperties } from "./flac/flacProperties.js";
 
 // MP4
@@ -78,25 +78,25 @@ export { OggFile } from "./ogg/oggFile.js";
 export { OggPageHeader } from "./ogg/oggPageHeader.js";
 
 // RIFF
-export { WavFile } from "./riff/wav/wavFile.js";
+export { WavFile, WavTagTypes } from "./riff/wav/wavFile.js";
 export { WavProperties } from "./riff/wav/wavProperties.js";
 export { AiffFile } from "./riff/aiff/aiffFile.js";
 export { AiffProperties } from "./riff/aiff/aiffProperties.js";
 
 // MPC
-export { MpcFile } from "./mpc/mpcFile.js";
+export { MpcFile, MpcTagTypes } from "./mpc/mpcFile.js";
 export { MpcProperties } from "./mpc/mpcProperties.js";
 
 // WavPack
-export { WavPackFile } from "./wavpack/wavpackFile.js";
+export { WavPackFile, WavPackTagTypes } from "./wavpack/wavpackFile.js";
 export { WavPackProperties } from "./wavpack/wavpackProperties.js";
 
 // APE (file format)
-export { ApeFile } from "./ape/apeFile.js";
+export { ApeFile, ApeFileTagTypes } from "./ape/apeFile.js";
 export { ApeProperties } from "./ape/apeProperties.js";
 
 // TrueAudio
-export { TrueAudioFile } from "./trueaudio/trueAudioFile.js";
+export { TrueAudioFile, TrueAudioTagTypes } from "./trueaudio/trueAudioFile.js";
 export { TrueAudioProperties } from "./trueaudio/trueAudioProperties.js";
 
 // DSF
@@ -104,7 +104,7 @@ export { DsfFile } from "./dsf/dsfFile.js";
 export { DsfProperties } from "./dsf/dsfProperties.js";
 
 // DSDIFF
-export { DsdiffFile } from "./dsdiff/dsdiffFile.js";
+export { DsdiffFile, DsdiffTagType } from "./dsdiff/dsdiffFile.js";
 export { DsdiffProperties } from "./dsdiff/dsdiffProperties.js";
 export { DsdiffDiinTag } from "./dsdiff/dsdiffDiinTag.js";
 

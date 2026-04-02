@@ -44,6 +44,27 @@ interface MetadataBlock {
 }
 
 // =============================================================================
+// FlacTagTypes
+// =============================================================================
+
+/**
+ * Bitmask identifying which tag formats are present in a FLAC file.
+ * Used with {@link FlacFile.strip} to select which tags to remove.
+ */
+export enum FlacTagTypes {
+  /** No tag types. */
+  NoTags      = 0x0000,
+  /** Matches XiphComment (Vorbis Comment) tags. */
+  XiphComment = 0x0001,
+  /** Matches ID3v1 tags. */
+  ID3v1       = 0x0002,
+  /** Matches ID3v2 tags. */
+  ID3v2       = 0x0004,
+  /** Matches all tag types. */
+  AllTags     = 0xffff,
+}
+
+// =============================================================================
 // FlacFile
 // =============================================================================
 
@@ -59,6 +80,8 @@ interface MetadataBlock {
 export class FlacFile extends File {
   /** The Vorbis Comment (XiphComment) tag, populated from the VorbisComment metadata block. */
   private _xiphComment: XiphComment | null = null;
+  /** Whether a VorbisComment block was found on disk during parsing. */
+  private _hasXiphComment: boolean = false;
   /** The ID3v2 tag, present if one was found before the "fLaC" magic. */
   private _id3v2Tag: Id3v2Tag | null = null;
   /** The ID3v1 tag, present if one was found at the end of the file. */
@@ -279,19 +302,86 @@ export class FlacFile extends File {
   // Tag accessors
   // ---------------------------------------------------------------------------
 
-  /** The XiphComment (Vorbis Comment) tag, or `null` if not present. */
-  get xiphComment(): XiphComment | null {
+  /**
+   * Returns the XiphComment (Vorbis Comment) tag.
+   * @param create - If `true` and no XiphComment exists, a new empty one is created.
+   * @returns The {@link XiphComment}, or `null` if not present and `create` is falsy.
+   */
+  xiphComment(create?: boolean): XiphComment | null {
+    if (!this._xiphComment && create) {
+      this._xiphComment = new XiphComment();
+      this.refreshCombinedTag();
+    }
     return this._xiphComment;
   }
 
-  /** The ID3v2 tag, or `null` if not present. */
-  get id3v2Tag(): Id3v2Tag | null {
+  /**
+   * Returns the ID3v2 tag.
+   * @param create - If `true` and no ID3v2 tag exists, a new empty one is created.
+   * @returns The {@link Id3v2Tag}, or `null` if not present and `create` is falsy.
+   */
+  id3v2Tag(create?: boolean): Id3v2Tag | null {
+    if (!this._id3v2Tag && create) {
+      this._id3v2Tag = new Id3v2Tag();
+      this.refreshCombinedTag();
+    }
     return this._id3v2Tag;
   }
 
-  /** The ID3v1 tag, or `null` if not present. */
-  get id3v1Tag(): ID3v1Tag | null {
+  /**
+   * Returns the ID3v1 tag.
+   * @param create - If `true` and no ID3v1 tag exists, a new empty one is created.
+   * @returns The {@link ID3v1Tag}, or `null` if not present and `create` is falsy.
+   */
+  id3v1Tag(create?: boolean): ID3v1Tag | null {
+    if (!this._id3v1Tag && create) {
+      this._id3v1Tag = new ID3v1Tag();
+      this.refreshCombinedTag();
+    }
     return this._id3v1Tag;
+  }
+
+  /**
+   * Whether a VorbisComment block was present on disk when the file was opened.
+   * @returns `true` if a XiphComment was read from the FLAC metadata blocks.
+   */
+  get hasXiphComment(): boolean {
+    return this._hasXiphComment;
+  }
+
+  /**
+   * Whether an ID3v2 tag was present on disk when the file was opened.
+   * @returns `true` if an ID3v2 tag was found before the "fLaC" magic.
+   */
+  get hasID3v2Tag(): boolean {
+    return this._id3v2Location >= 0;
+  }
+
+  /**
+   * Whether an ID3v1 tag was present on disk when the file was opened.
+   * @returns `true` if an ID3v1 tag was found at the end of the file.
+   */
+  get hasID3v1Tag(): boolean {
+    return this._id3v1Location >= 0;
+  }
+
+  /**
+   * Removes the tag types indicated by `tags` from the in-memory representation.
+   * Changes are written to disk the next time {@link save} is called.
+   * @param tags - Bitmask of {@link FlacTagTypes} to strip (default: all).
+   */
+  strip(tags: FlacTagTypes = FlacTagTypes.AllTags): void {
+    if (tags & FlacTagTypes.XiphComment) {
+      this._xiphComment = new XiphComment();
+      this._hasXiphComment = false;
+    }
+    if (tags & FlacTagTypes.ID3v2) {
+      this._id3v2Tag = null;
+    }
+    if (tags & FlacTagTypes.ID3v1) {
+      this._id3v1Tag = null;
+    }
+    this.refreshCombinedTag();
   }
 
   // ---------------------------------------------------------------------------
@@ -567,6 +657,7 @@ export class FlacFile extends File {
     // Parse xiph comment data
     if (xiphCommentData) {
       this._xiphComment = XiphComment.readFrom(xiphCommentData);
+      this._hasXiphComment = true;
     } else {
       this._xiphComment = new XiphComment();
     }
