@@ -78,6 +78,7 @@ async function writePictureAndReRead(
 
 describe("Picture write/read — FLAC", () => {
   it("should write and read back a single picture", async () => {
+    // TypeScript-only test
     const pic = makePicture({ width: 300, height: 300, colorDepth: 24, numColors: 0 });
     const pics = await writePictureAndReRead("silence-44-s.flac", ".flac", [pic]);
 
@@ -98,6 +99,7 @@ describe("Picture write/read — FLAC", () => {
   });
 
   it("should write and read back multiple pictures", async () => {
+    // TypeScript-only test
     const front = makePicture({ mimeType: "image/jpeg", description: "Front", pictureType: 3 });
     const back = makePicture({ mimeType: "image/png", description: "Back", pictureType: 4, size: 128 });
     const pics = await writePictureAndReRead("silence-44-s.flac", ".flac", [front, back]);
@@ -111,6 +113,7 @@ describe("Picture write/read — FLAC", () => {
   });
 
   it("should replace existing pictures", async () => {
+    // TypeScript-only test
     // First, write one picture
     const data = readTestData("silence-44-s.flac");
     let ref = await FileRef.fromByteArray(new Uint8Array(data), "test.flac");
@@ -142,6 +145,7 @@ describe("Picture write/read — FLAC", () => {
 
 describe("Picture write/read — MP4 (M4A)", () => {
   it("should write and read back a JPEG picture", async () => {
+    // TypeScript-only test
     const pic = makePicture({ mimeType: "image/jpeg" });
     const pics = await writePictureAndReRead("has-tags.m4a", ".m4a", [pic]);
 
@@ -157,6 +161,7 @@ describe("Picture write/read — MP4 (M4A)", () => {
   });
 
   it("should write and read back a PNG picture", async () => {
+    // TypeScript-only test
     const pic = makePicture({ mimeType: "image/png" });
     const pics = await writePictureAndReRead("has-tags.m4a", ".m4a", [pic]);
 
@@ -165,6 +170,7 @@ describe("Picture write/read — MP4 (M4A)", () => {
   });
 
   it("should write and read back multiple cover arts", async () => {
+    // TypeScript-only test
     const a = makePicture({ mimeType: "image/jpeg", size: 100 });
     const b = makePicture({ mimeType: "image/png", size: 200 });
     const pics = await writePictureAndReRead("has-tags.m4a", ".m4a", [a, b]);
@@ -175,6 +181,7 @@ describe("Picture write/read — MP4 (M4A)", () => {
   });
 
   it("should work on file with no existing tags", async () => {
+    // TypeScript-only test
     const pic = makePicture({ mimeType: "image/jpeg", size: 64 });
     const pics = await writePictureAndReRead("no-tags.m4a", ".m4a", [pic]);
 
@@ -189,6 +196,7 @@ describe("Picture write/read — MP4 (M4A)", () => {
 
 describe("Picture write/read — MP3 (ID3v2)", () => {
   it("should write and read back a picture via APIC frame", async () => {
+    // TypeScript-only test
     const pic = makePicture({ mimeType: "image/jpeg", description: "Album art" });
     const pics = await writePictureAndReRead("xing.mp3", ".mp3", [pic]);
 
@@ -207,6 +215,7 @@ describe("Picture write/read — MP3 (ID3v2)", () => {
   });
 
   it("should write and read back multiple pictures", async () => {
+    // TypeScript-only test
     const front = makePicture({ mimeType: "image/jpeg", description: "Front", pictureType: 3 });
     const back = makePicture({ mimeType: "image/png", description: "Back Cover", pictureType: 4, size: 128 });
     const pics = await writePictureAndReRead("xing.mp3", ".mp3", [front, back]);
@@ -218,6 +227,7 @@ describe("Picture write/read — MP3 (ID3v2)", () => {
   });
 
   it("should work on file with existing ID3v2 tags", async () => {
+    // TypeScript-only test
     // Use lame_cbr.mp3 which has standard ID3v2.3 tags (itunes10.mp3 has
     // legacy v2.2 tags with 3-char frame IDs that cause format mismatches)
     const pic = makePicture({ size: 512 });
@@ -234,6 +244,7 @@ describe("Picture write/read — MP3 (ID3v2)", () => {
 
 describe("Picture write/read — OGG Vorbis", () => {
   it("should write and read back a picture via METADATA_BLOCK_PICTURE", async () => {
+    // TypeScript-only test
     const pic = makePicture({
       mimeType: "image/jpeg",
       description: "OGG Cover",
@@ -260,6 +271,7 @@ describe("Picture write/read — OGG Vorbis", () => {
   });
 
   it("should write and read back multiple pictures", async () => {
+    // TypeScript-only test
     const a = makePicture({ description: "Front", size: 100 });
     const b = makePicture({ description: "Artist", pictureType: 8, size: 200 });
     const pics = await writePictureAndReRead("empty.ogg", ".ogg", [a, b]);
@@ -276,6 +288,7 @@ describe("Picture write/read — OGG Vorbis", () => {
 
 describe("Picture write/read — WAV", () => {
   it("should write and read back a picture via ID3v2 in RIFF", async () => {
+    // TypeScript-only test
     const pic = makePicture({ mimeType: "image/png", description: "WAV Cover" });
     const pics = await writePictureAndReRead("empty.wav", ".wav", [pic]);
 
@@ -292,6 +305,7 @@ describe("Picture write/read — WAV", () => {
 
 describe("Picture write/read — AIFF", () => {
   it("should write and read back a picture via ID3v2 in AIFF", async () => {
+    // TypeScript-only test
     const pic = makePicture({ mimeType: "image/jpeg", description: "AIFF Cover" });
     const pics = await writePictureAndReRead("noise.aif", ".aif", [pic]);
 
@@ -308,6 +322,7 @@ describe("Picture write/read — AIFF", () => {
 
 describe("Picture write/read — ASF (WMA)", () => {
   it("should write and read back a picture via WM/Picture", async () => {
+    // TypeScript-only test
     const pic = makePicture({ mimeType: "image/jpeg", description: "WMA Cover" });
     const pics = await writePictureAndReRead("silence-1.wma", ".wma", [pic]);
 
@@ -332,6 +347,7 @@ describe("Picture write/read — ASF (WMA)", () => {
 
 describe("Picture write/read — DSF (ID3v2)", () => {
   it("should write and read back a picture via ID3v2 in DSF", async () => {
+    // TypeScript-only test
     const pic = makePicture({ mimeType: "image/png", description: "DSF Art" });
     const pics = await writePictureAndReRead("empty10ms.dsf", ".dsf", [pic]);
 
@@ -344,6 +360,7 @@ describe("Picture write/read — DSF (ID3v2)", () => {
 
 describe("Picture write/read — TrueAudio (ID3v2)", () => {
   it("should write and read back a picture via ID3v2 in TTA", async () => {
+    // TypeScript-only test
     const pic = makePicture({ mimeType: "image/jpeg", description: "TTA Art" });
     const pics = await writePictureAndReRead("empty.tta", ".tta", [pic]);
 
@@ -360,6 +377,7 @@ describe("Picture write/read — TrueAudio (ID3v2)", () => {
 
 describe("Picture data integrity", () => {
   it("should preserve large picture data (4KB) through FLAC round-trip", async () => {
+    // TypeScript-only test
     const pic = makePicture({ size: 4096, mimeType: "image/jpeg" });
     const pics = await writePictureAndReRead("silence-44-s.flac", ".flac", [pic]);
 
@@ -372,6 +390,7 @@ describe("Picture data integrity", () => {
   });
 
   it("should preserve large picture data (4KB) through MP3 round-trip", async () => {
+    // TypeScript-only test
     const pic = makePicture({ size: 4096, mimeType: "image/jpeg" });
     const pics = await writePictureAndReRead("xing.mp3", ".mp3", [pic]);
 
@@ -384,6 +403,7 @@ describe("Picture data integrity", () => {
   });
 
   it("should preserve large picture data (4KB) through M4A round-trip", async () => {
+    // TypeScript-only test
     const pic = makePicture({ size: 4096, mimeType: "image/png" });
     const pics = await writePictureAndReRead("has-tags.m4a", ".m4a", [pic]);
 
@@ -396,6 +416,7 @@ describe("Picture data integrity", () => {
   });
 
   it("should preserve large picture data (4KB) through OGG round-trip", async () => {
+    // TypeScript-only test
     const pic = makePicture({ size: 4096, mimeType: "image/jpeg" });
     const pics = await writePictureAndReRead("empty.ogg", ".ogg", [pic]);
 

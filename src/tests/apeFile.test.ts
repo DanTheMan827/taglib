@@ -11,6 +11,7 @@ async function openApeFile(filename: string, readProperties = true, readStyle = 
 
 describe("APE", () => {
   it("testProperties399", async () => {
+    // C++: test_ape.cpp – TestAPEFile::testProperties399
     const f = await openApeFile("mac-399.ape");
     const props = f.audioProperties();
     expect(props).not.toBeNull();
@@ -26,6 +27,7 @@ describe("APE", () => {
   });
 
   it("testProperties399Tagged", async () => {
+    // C++: test_ape.cpp – TestAPEFile::testProperties399Tagged
     const f = await openApeFile("mac-399-tagged.ape");
     const props = f.audioProperties();
     expect(props).not.toBeNull();
@@ -41,6 +43,7 @@ describe("APE", () => {
   });
 
   it("testProperties399Id3v2", async () => {
+    // C++: test_ape.cpp – TestAPEFile::testProperties399Id3v2
     const f = await openApeFile("mac-399-id3v2.ape");
     const props = f.audioProperties();
     expect(props).not.toBeNull();
@@ -56,6 +59,7 @@ describe("APE", () => {
   });
 
   it("testProperties396", async () => {
+    // C++: test_ape.cpp – TestAPEFile::testProperties396
     const f = await openApeFile("mac-396.ape");
     const props = f.audioProperties();
     expect(props).not.toBeNull();
@@ -71,6 +75,7 @@ describe("APE", () => {
   });
 
   it("testProperties390", async () => {
+    // C++: test_ape.cpp – TestAPEFile::testProperties390
     const f = await openApeFile("mac-390-hdr.ape");
     const props = f.audioProperties();
     expect(props).not.toBeNull();
@@ -86,16 +91,19 @@ describe("APE", () => {
   });
 
   it("testFuzzedFile1 - longloop.ape", async () => {
+    // TypeScript-only test
     const f = await openApeFile("longloop.ape");
     expect(typeof f.isValid).toBe("boolean");
   });
 
   it("testFuzzedFile2 - zerodiv.ape", async () => {
+    // TypeScript-only test
     const f = await openApeFile("zerodiv.ape");
     expect(typeof f.isValid).toBe("boolean");
   });
 
   it("testStripAndProperties", async () => {
+    // C++: test_ape.cpp – TestAPEFile::testStripAndProperties
     const data = readTestData("mac-399-tagged.ape");
     const stream = new ByteVectorStream(data);
     const f = await ApeFile.open(stream, true, ReadStyle.Average);
@@ -118,6 +126,7 @@ describe("APE", () => {
   });
 
   it("testRepeatedSave", async () => {
+    // C++: test_ape.cpp – TestAPEFile::testRepeatedSave
     const data = readTestData("mac-399.ape");
     const stream = new ByteVectorStream(data);
     const f = await ApeFile.open(stream, true, ReadStyle.Average);

@@ -16,6 +16,7 @@ function longText(length: number): string {
 
 describe("OGG Vorbis", () => {
   it("should read audio properties", async () => {
+    // TypeScript-only test
     const stream = openTestStream("empty.ogg");
     const f = await OggVorbisFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -33,6 +34,7 @@ describe("OGG Vorbis", () => {
   });
 
   it("should read test ogg file", async () => {
+    // TypeScript-only test
     const stream = openTestStream("test.ogg");
     const f = await OggVorbisFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -45,6 +47,7 @@ describe("OGG Vorbis", () => {
   });
 
   it("should read simple tag", async () => {
+    // TypeScript-only test
     const data = readTestData("empty.ogg");
     const stream = new ByteVectorStream(data);
     const f = await OggVorbisFile.open(stream, true, ReadStyle.Average);
@@ -59,18 +62,21 @@ describe("OGG Vorbis", () => {
   });
 
   it("should read lowercase fields ogg", async () => {
+    // TypeScript-only test
     const stream = openTestStream("lowercase-fields.ogg");
     const f = await OggVorbisFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
   });
 
   it("should read empty_vorbis.oga", async () => {
+    // TypeScript-only test
     const stream = openTestStream("empty_vorbis.oga");
     const f = await OggVorbisFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
   });
 
   it("should handle split packets 1", async () => {
+    // TypeScript-only test
     const text = longText(128 * 1024);
 
     // Phase 1: write large title
@@ -114,6 +120,7 @@ describe("OGG Vorbis", () => {
   });
 
   it("should handle split packets 2", async () => {
+    // TypeScript-only test
     const text = longText(60890);
 
     const data = readTestData("empty.ogg");
@@ -143,6 +150,7 @@ describe("OGG Vorbis", () => {
   });
 
   it("should save and re-read", async () => {
+    // TypeScript-only test
     const data = readTestData("empty.ogg");
     const stream = new ByteVectorStream(data);
     const f = await OggVorbisFile.open(stream, true, ReadStyle.Average);
@@ -168,6 +176,7 @@ describe("OGG Vorbis", () => {
 
 describe("OGG Opus", () => {
   it("should read audio properties", async () => {
+    // TypeScript-only test
     const stream = openTestStream("correctness_gain_silent_output.opus");
     const f = await OggOpusFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -184,6 +193,7 @@ describe("OGG Opus", () => {
   });
 
   it("should read Opus comments", async () => {
+    // TypeScript-only test
     const stream = openTestStream("correctness_gain_silent_output.opus");
     const f = await OggOpusFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -196,6 +206,7 @@ describe("OGG Opus", () => {
   });
 
   it("should write Opus comments", async () => {
+    // TypeScript-only test
     const data = readTestData("correctness_gain_silent_output.opus");
     const stream = new ByteVectorStream(data);
     const f = await OggOpusFile.open(stream, true, ReadStyle.Average);
@@ -211,6 +222,7 @@ describe("OGG Opus", () => {
   });
 
   it("should handle split packets", async () => {
+    // TypeScript-only test
     const text = longText(128 * 1024);
 
     // Phase 1: write large title
@@ -258,6 +270,7 @@ describe("OGG Opus", () => {
 
 describe("OGG Speex", () => {
   it("should read audio properties", async () => {
+    // TypeScript-only test
     const stream = openTestStream("empty.spx");
     const f = await OggSpeexFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -272,6 +285,7 @@ describe("OGG Speex", () => {
   });
 
   it("should handle split packets", async () => {
+    // TypeScript-only test
     const text = longText(128 * 1024);
 
     // Phase 1: write large title

@@ -3,6 +3,7 @@ import { PropertyMap } from "../toolkit/propertyMap.js";
 
 describe("PropertyMap", () => {
   it("should store and retrieve values", () => {
+    // TypeScript-only test
     const pm = new PropertyMap();
     pm.insert("TITLE", ["Hello"]);
     expect(pm.contains("TITLE")).toBe(true);
@@ -10,6 +11,7 @@ describe("PropertyMap", () => {
   });
 
   it("should be case-insensitive", () => {
+    // TypeScript-only test
     const pm = new PropertyMap();
     pm.insert("title", ["Hello"]);
     expect(pm.contains("TITLE")).toBe(true);
@@ -17,6 +19,7 @@ describe("PropertyMap", () => {
   });
 
   it("should replace values", () => {
+    // TypeScript-only test
     const pm = new PropertyMap();
     pm.insert("TITLE", ["First"]);
     pm.replace("TITLE", ["Second"]);
@@ -24,6 +27,7 @@ describe("PropertyMap", () => {
   });
 
   it("should erase values", () => {
+    // TypeScript-only test
     const pm = new PropertyMap();
     pm.insert("TITLE", ["Hello"]);
     expect(pm.erase("TITLE")).toBe(true);
@@ -31,6 +35,7 @@ describe("PropertyMap", () => {
   });
 
   it("should merge property maps", () => {
+    // TypeScript-only test
     const pm1 = new PropertyMap();
     pm1.insert("TITLE", ["First"]);
     const pm2 = new PropertyMap();
@@ -42,6 +47,7 @@ describe("PropertyMap", () => {
   });
 
   it("should track size", () => {
+    // TypeScript-only test
     const pm = new PropertyMap();
     expect(pm.size).toBe(0);
     pm.insert("TITLE", ["Hello"]);
@@ -51,6 +57,7 @@ describe("PropertyMap", () => {
   });
 
   it("should remove empty entries", () => {
+    // TypeScript-only test
     const pm = new PropertyMap();
     pm.insert("TITLE", []);
     pm.insert("ARTIST", ["Art"]);
@@ -60,12 +67,14 @@ describe("PropertyMap", () => {
   });
 
   it("should track unsupported data", () => {
+    // TypeScript-only test
     const pm = new PropertyMap();
     pm.addUnsupportedData("TXXX:CUSTOM");
     expect(pm.unsupportedData()).toContain("TXXX:CUSTOM");
   });
 
   it("should iterate entries", () => {
+    // TypeScript-only test
     const pm = new PropertyMap();
     pm.insert("TITLE", ["Hello"]);
     pm.insert("ARTIST", ["World"]);

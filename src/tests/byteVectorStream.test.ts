@@ -5,12 +5,14 @@ import { Position } from "../toolkit/types.js";
 
 describe("ByteVectorStream", () => {
   it("should initialize with data", () => {
+    // TypeScript-only test
     const v = ByteVector.fromString("abcd", StringType.Latin1);
     const stream = new ByteVectorStream(v);
     expect(stream.data().equals(ByteVector.fromString("abcd", StringType.Latin1))).toBe(true);
   });
 
   it("should write block", async () => {
+    // TypeScript-only test
     const v = ByteVector.fromString("abcd", StringType.Latin1);
     const stream = new ByteVectorStream(v);
     await stream.seek(1);
@@ -19,6 +21,7 @@ describe("ByteVectorStream", () => {
   });
 
   it("should write block with resize", async () => {
+    // TypeScript-only test
     const v = ByteVector.fromString("abcd", StringType.Latin1);
     const stream = new ByteVectorStream(v);
     await stream.seek(3);
@@ -30,6 +33,7 @@ describe("ByteVectorStream", () => {
   });
 
   it("should read block", async () => {
+    // TypeScript-only test
     const v = ByteVector.fromString("abcd", StringType.Latin1);
     const stream = new ByteVectorStream(v);
     expect((await stream.readBlock(1)).equals(ByteVector.fromString("a", StringType.Latin1))).toBe(true);
@@ -39,6 +43,7 @@ describe("ByteVectorStream", () => {
   });
 
   it("should remove block", async () => {
+    // TypeScript-only test
     const v = ByteVector.fromString("abcd", StringType.Latin1);
     const stream = new ByteVectorStream(v);
     await stream.removeBlock(1, 1);
@@ -50,6 +55,7 @@ describe("ByteVectorStream", () => {
   });
 
   it("should insert", async () => {
+    // TypeScript-only test
     const v = ByteVector.fromString("abcd", StringType.Latin1);
     const stream = new ByteVectorStream(v);
     await stream.insert(ByteVector.fromString("xx", StringType.Latin1), 1, 1);
@@ -63,6 +69,7 @@ describe("ByteVectorStream", () => {
   });
 
   it("should seek from end", async () => {
+    // TypeScript-only test
     const v = ByteVector.fromString("abcdefghijklmnopqrstuvwxyz", StringType.Latin1);
     const stream = new ByteVectorStream(v);
     expect(await stream.length()).toBe(26);

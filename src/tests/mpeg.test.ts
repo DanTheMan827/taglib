@@ -17,6 +17,7 @@ async function openMpegFile(
 describe("MPEG", () => {
   describe("basic properties", () => {
     it("should read Xing header CBR audio properties", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("lame_cbr.mp3");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -30,6 +31,7 @@ describe("MPEG", () => {
     });
 
     it("should read Xing header VBR audio properties", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("lame_vbr.mp3");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -43,6 +45,7 @@ describe("MPEG", () => {
     });
 
     it("should read VBRI header audio properties", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("rare_frames.mp3");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -56,6 +59,7 @@ describe("MPEG", () => {
     });
 
     it("should read no-VBR-headers audio properties", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("bladeenc.mp3");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -68,6 +72,7 @@ describe("MPEG", () => {
     });
 
     it("should read xing VBR file", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("xing.mp3");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -80,6 +85,7 @@ describe("MPEG", () => {
     });
 
     it("should read MPEG2 duration with Xing header", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("mpeg2.mp3");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -91,28 +97,33 @@ describe("MPEG", () => {
 
   describe("tags", () => {
     it("should read ID3v2 tag from xing", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("xing.mp3");
       const tag = f.tag();
       expect(tag).not.toBeNull();
     });
 
     it("should read APE tag", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("ape.mp3");
       expect(f.isValid).toBe(true);
       expect(f.apeTag).not.toBeNull();
     });
 
     it("should read APE + ID3v1 tag", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("ape-id3v1.mp3");
       expect(f.isValid).toBe(true);
     });
 
     it("should read APE + ID3v2 tag", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("ape-id3v2.mp3");
       expect(f.isValid).toBe(true);
     });
 
     it("should read itunes 10 file", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("itunes10.mp3");
       expect(f.isValid).toBe(true);
       const tag = f.tag();
@@ -120,11 +131,13 @@ describe("MPEG", () => {
     });
 
     it("should read extended header file", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("extended-header.mp3");
       expect(f.isValid).toBe(true);
     });
 
     it("should read duplicate ID3v2 tags", async () => {
+      // TypeScript-only test
       // duplicate_id3v2.mp3 has duplicate ID3v2 tags.
       // Sample rate will be 32000 if can't skip the second tag.
       const f = await openMpegFile("duplicate_id3v2.mp3");
@@ -136,6 +149,7 @@ describe("MPEG", () => {
 
   describe("frame scanning", () => {
     it("should find frame offsets for ape.mp3", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("ape.mp3");
       expect(f.isValid).toBe(true);
       expect(await f.firstFrameOffset()).toBeGreaterThanOrEqual(0);
@@ -143,6 +157,7 @@ describe("MPEG", () => {
     });
 
     it("should find frame offsets for ape-id3v2.mp3", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("ape-id3v2.mp3");
       expect(f.isValid).toBe(true);
       const first = await f.firstFrameOffset();
@@ -151,12 +166,14 @@ describe("MPEG", () => {
     });
 
     it("should find first frame offset", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("xing.mp3");
       const offset = await f.firstFrameOffset();
       expect(offset).toBeGreaterThanOrEqual(0);
     });
 
     it("should find last frame offset", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("xing.mp3");
       const offset = await f.lastFrameOffset();
       expect(offset).toBeGreaterThanOrEqual(0);
@@ -165,27 +182,32 @@ describe("MPEG", () => {
 
   describe("invalid files", () => {
     it("should handle invalid frames 1", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("invalid-frames1.mp3");
       // File may be valid but with limited frames
       expect(f.isValid).toBeDefined();
     });
 
     it("should handle invalid frames 2", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("invalid-frames2.mp3");
       expect(f.isValid).toBeDefined();
     });
 
     it("should handle invalid frames 3", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("invalid-frames3.mp3");
       expect(f.isValid).toBeDefined();
     });
 
     it("should handle garbage file", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("garbage.mp3");
       expect(f.isValid).toBeDefined();
     });
 
     it("should handle excessive alloc file", async () => {
+      // TypeScript-only test
       const f = await openMpegFile("excessive_alloc.mp3");
       expect(f.isValid).toBeDefined();
     });
@@ -193,6 +215,7 @@ describe("MPEG", () => {
 
   describe("write", () => {
     it("should save and re-read properties", async () => {
+      // TypeScript-only test
       const data = readTestData("xing.mp3");
       const stream = new ByteVectorStream(data);
       const f = await MpegFile.open(stream, true, ReadStyle.Average);
@@ -213,6 +236,7 @@ describe("MPEG", () => {
 
     // testSaveID3v24: save with explicit ID3v2.4 version; re-read version == 4.
     it("testSaveID3v24: should save and re-read ID3v2.4 tags", async () => {
+      // TypeScript-only test
       const xxx = "X".repeat(254);
       const data = readTestData("xing.mp3");
       const stream = new ByteVectorStream(data);
@@ -234,6 +258,7 @@ describe("MPEG", () => {
 
     // testSaveID3v23: save with explicit ID3v2.3 version; re-read version == 3.
     it("testSaveID3v23: should save and re-read ID3v2.3 tags", async () => {
+      // TypeScript-only test
       const xxx = "X".repeat(254);
       const data = readTestData("xing.mp3");
       const stream = new ByteVectorStream(data);
@@ -255,6 +280,7 @@ describe("MPEG", () => {
 
     // testRepeatedSave1: large tag + clear + re-save; firstFrameOffset == 5141.
     it("testRepeatedSave1: firstFrameOffset correct after repeated saves", async () => {
+      // TypeScript-only test
       const data = readTestData("xing.mp3");
       const stream = new ByteVectorStream(data);
 
@@ -273,6 +299,7 @@ describe("MPEG", () => {
 
     // testRepeatedSave2: two saves of same data; only one ID3 marker at offset 0.
     it("testRepeatedSave2: no duplicate ID3 header after repeated saves", async () => {
+      // TypeScript-only test
       const data = readTestData("xing.mp3");
       const stream = new ByteVectorStream(data);
 
@@ -292,6 +319,7 @@ describe("MPEG", () => {
     // testEmptyID3v2: saving an empty ID3v2 tag must strip the chunk on save.
     // Matches C++ testEmptyID3v2: save(ID3v2) writes, save(ID3v2,StripNone) strips.
     it("testEmptyID3v2: saving empty ID3v2 tag removes it from the file", async () => {
+      // TypeScript-only test
       const data = readTestData("xing.mp3");
       const stream = new ByteVectorStream(data);
 
@@ -315,6 +343,7 @@ describe("MPEG", () => {
     // testEmptyID3v1: ID3v1 tag that is set then cleared must be stripped.
     // Matches C++ testEmptyID3v1.
     it("testEmptyID3v1: saving empty ID3v1 tag removes it from the file", async () => {
+      // TypeScript-only test
       const data = readTestData("xing.mp3");
       const stream = new ByteVectorStream(data);
 

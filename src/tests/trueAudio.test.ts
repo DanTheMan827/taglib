@@ -11,6 +11,7 @@ async function openTrueAudioFile(filename: string, readProperties = true, readSt
 
 describe("TrueAudio", () => {
   it("testReadPropertiesWithoutID3v2", async () => {
+    // C++: test_trueaudio.cpp – TestTrueAudio::testReadPropertiesWithoutID3v2
     const f = await openTrueAudioFile("empty.tta");
     const props = f.audioProperties();
     expect(props).not.toBeNull();
@@ -26,6 +27,7 @@ describe("TrueAudio", () => {
   });
 
   it("testReadPropertiesWithTags", async () => {
+    // C++: test_trueaudio.cpp – TestTrueAudio::testReadPropertiesWithTags
     const f = await openTrueAudioFile("tagged.tta");
     const props = f.audioProperties();
     expect(props).not.toBeNull();
@@ -41,6 +43,7 @@ describe("TrueAudio", () => {
   });
 
   it("testStripAndProperties", async () => {
+    // C++: test_trueaudio.cpp – TestTrueAudio::testStripAndProperties
     const data = readTestData("empty.tta");
     const stream = new ByteVectorStream(data);
     const f = await TrueAudioFile.open(stream, true, ReadStyle.Average);
@@ -71,6 +74,7 @@ describe("TrueAudio", () => {
   });
 
   it("testRepeatedSave", async () => {
+    // C++: test_trueaudio.cpp – TestTrueAudio::testRepeatedSave
     const data = readTestData("empty.tta");
     const stream = new ByteVectorStream(data);
     const f = await TrueAudioFile.open(stream, true, ReadStyle.Average);

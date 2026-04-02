@@ -5,6 +5,7 @@ import { openTestStream } from "./testHelper.js";
 
 describe("Shorten", () => {
   it("should read basic audio properties", async () => {
+    // TypeScript-only test
     const stream = openTestStream("2sec-silence.shn");
     const f = await ShortenFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -25,6 +26,7 @@ describe("Shorten", () => {
   });
 
   it("should handle tags (empty - read only format)", async () => {
+    // TypeScript-only test
     // Shorten format has no writable tags; testTags in C++ is empty
     const stream = openTestStream("2sec-silence.shn");
     const f = await ShortenFile.open(stream, true, ReadStyle.Average);

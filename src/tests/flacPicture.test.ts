@@ -24,6 +24,7 @@ describe("FlacPicture", () => {
   ]);
 
   it("should parse picture data", () => {
+    // TypeScript-only test
     const pic = FlacPicture.parse(ByteVector.fromByteArray(pictureData));
     expect(pic.pictureType).toBe(3);
     expect(pic.width).toBe(1);
@@ -36,6 +37,7 @@ describe("FlacPicture", () => {
   });
 
   it("should round-trip render", () => {
+    // TypeScript-only test
     const original = ByteVector.fromByteArray(pictureData);
     const pic = FlacPicture.parse(original);
     const rendered = pic.render();

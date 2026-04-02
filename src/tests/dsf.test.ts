@@ -11,6 +11,7 @@ async function openDsfFile(filename: string, readProperties = true, readStyle = 
 
 describe("DSF", () => {
   it("testBasic", async () => {
+    // C++: test_dsf.cpp – TestDSF::testBasic
     const f = await openDsfFile("empty10ms.dsf");
     const props = f.audioProperties();
     expect(props).not.toBeNull();
@@ -24,6 +25,7 @@ describe("DSF", () => {
   });
 
   it("testTags", async () => {
+    // C++: test_dsf.cpp – TestDSF::testTags
     const data = readTestData("empty10ms.dsf");
     const stream = new ByteVectorStream(data);
     const f = await DsfFile.open(stream, true, ReadStyle.Average);

@@ -21,6 +21,7 @@ async function openAsfFileCopy(name: string): Promise<{ file: AsfFile; stream: B
 
 describe("ASF", () => {
   it("should read audio properties", async () => {
+    // TypeScript-only test
     const f = await openAsfFile("silence-1.wma");
     const props = f.audioProperties();
     expect(props).not.toBeNull();
@@ -36,6 +37,7 @@ describe("ASF", () => {
   });
 
   it("should read lossless properties", async () => {
+    // TypeScript-only test
     const f = await openAsfFile("lossless.wma");
     const props = f.audioProperties();
     expect(props).not.toBeNull();
@@ -51,11 +53,13 @@ describe("ASF", () => {
   });
 
   it("should read tags", async () => {
+    // TypeScript-only test
     const f = await openAsfFile("silence-1.wma");
     expect(f.tag()!.title).toBe("test");
   });
 
   it("should save multiple values", async () => {
+    // TypeScript-only test
     const { file: f, stream } = await openAsfFileCopy("silence-1.wma");
     const values = [
       AsfAttribute.fromString("Foo"),
@@ -70,6 +74,7 @@ describe("ASF", () => {
   });
 
   it("should save stream", async () => {
+    // TypeScript-only test
     const { file: f, stream } = await openAsfFileCopy("silence-1.wma");
     const attr = AsfAttribute.fromString("Foo");
     attr.stream = 43;
@@ -82,6 +87,7 @@ describe("ASF", () => {
   });
 
   it("should save language", async () => {
+    // TypeScript-only test
     const { file: f, stream } = await openAsfFileCopy("silence-1.wma");
     const attr = AsfAttribute.fromString("Foo");
     attr.stream = 32;
@@ -96,6 +102,7 @@ describe("ASF", () => {
   });
 
   it("should handle DWord track number", async () => {
+    // TypeScript-only test
     const { file: f, stream } = await openAsfFileCopy("silence-1.wma");
     expect(f.tag()!.contains("WM/TrackNumber")).toBe(false);
     f.tag()!.setAttribute("WM/TrackNumber", AsfAttribute.fromUInt(123));
@@ -117,6 +124,7 @@ describe("ASF", () => {
   });
 
   it("should save large value", async () => {
+    // TypeScript-only test
     const { file: f, stream } = await openAsfFileCopy("silence-1.wma");
     const bigData = ByteVector.fromSize(70000, 0x78); // 'x'
     const attr = AsfAttribute.fromByteVector(bigData);
@@ -132,6 +140,7 @@ describe("ASF", () => {
   });
 
   it("should save picture", async () => {
+    // TypeScript-only test
     const { file: f, stream } = await openAsfFileCopy("silence-1.wma");
     const picture = AsfPicture.create();
     picture.mimeType = "image/jpeg";
@@ -154,6 +163,7 @@ describe("ASF", () => {
   });
 
   it("should save multiple pictures", async () => {
+    // TypeScript-only test
     const { file: f, stream } = await openAsfFileCopy("silence-1.wma");
     const picture = AsfPicture.create();
     picture.mimeType = "image/jpeg";
@@ -198,6 +208,7 @@ describe("ASF", () => {
   });
 
   it("should handle properties", async () => {
+    // TypeScript-only test
     const { file: f } = await openAsfFileCopy("silence-1.wma");
 
     const tags = f.properties();
@@ -229,6 +240,7 @@ describe("ASF", () => {
   });
 
   it("should handle repeated save", async () => {
+    // TypeScript-only test
     const { file: f, stream } = await openAsfFileCopy("silence-1.wma");
     // Generate long text (~128KB)
     let longText = "";

@@ -116,11 +116,13 @@ async function testRead(
 
 describe("XM", () => {
   it("should read tags", async () => {
+    // TypeScript-only test
     const stream = openTestStream("test.xm");
     await testRead(stream, titleBefore, commentBefore, trackerNameBefore);
   });
 
   it("should read stripped tags", async () => {
+    // TypeScript-only test
     const stream = openTestStream("stripped.xm");
     const file = await XmFile.open(stream, true, ReadStyle.Average);
     expect(file.isValid).toBe(true);
@@ -153,6 +155,7 @@ describe("XM", () => {
   });
 
   it("should write tags (short comment)", async () => {
+    // TypeScript-only test
     const data = readTestDataBV("test.xm");
     const stream = new ByteVectorStream(data);
     const file = await XmFile.open(stream, true, ReadStyle.Average);
@@ -167,6 +170,7 @@ describe("XM", () => {
   });
 
   it("should write tags (long comment)", async () => {
+    // TypeScript-only test
     const data = readTestDataBV("test.xm");
     const stream = new ByteVectorStream(data);
     const file = await XmFile.open(stream, true, ReadStyle.Average);

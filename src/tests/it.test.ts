@@ -80,11 +80,13 @@ async function testRead(stream: ByteVectorStream, title: string, comment: string
 
 describe("IT", () => {
   it("should read tags", async () => {
+    // TypeScript-only test
     const stream = openTestStream("test.it");
     await testRead(stream, titleBefore, commentBefore);
   });
 
   it("should write tags", async () => {
+    // TypeScript-only test
     const data = readTestDataBV("test.it");
     const stream = new ByteVectorStream(data);
     const file = await ItFile.open(stream, true, ReadStyle.Average);

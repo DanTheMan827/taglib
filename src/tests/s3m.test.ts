@@ -66,11 +66,13 @@ async function testRead(stream: ByteVectorStream, title: string, comment: string
 
 describe("S3M", () => {
   it("should read tags", async () => {
+    // TypeScript-only test
     const stream = openTestStream("test.s3m");
     await testRead(stream, titleBefore, commentBefore);
   });
 
   it("should write tags", async () => {
+    // TypeScript-only test
     const data = readTestDataBV("test.s3m");
     const stream = new ByteVectorStream(data);
     const file = await S3mFile.open(stream, true, ReadStyle.Average);

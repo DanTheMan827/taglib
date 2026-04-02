@@ -12,6 +12,7 @@ async function openWavPackFile(filename: string, readProperties = true, readStyl
 describe("WavPack", () => {
   describe("properties", () => {
     it("should read no_length properties", async () => {
+      // TypeScript-only test
       const f = await openWavPackFile("no_length.wv");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -29,6 +30,7 @@ describe("WavPack", () => {
     });
 
     it("should read multi-channel properties", async () => {
+      // TypeScript-only test
       const f = await openWavPackFile("four_channels.wv");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -44,6 +46,7 @@ describe("WavPack", () => {
     });
 
     it("should read DSD stereo properties", async () => {
+      // TypeScript-only test
       const f = await openWavPackFile("dsd_stereo.wv");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -63,6 +66,7 @@ describe("WavPack", () => {
     });
 
     it("should read non-standard rate properties", async () => {
+      // TypeScript-only test
       const f = await openWavPackFile("non_standard_rate.wv");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -75,6 +79,7 @@ describe("WavPack", () => {
     });
 
     it("should read tagged file properties", async () => {
+      // TypeScript-only test
       const f = await openWavPackFile("tagged.wv");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -89,6 +94,7 @@ describe("WavPack", () => {
 
   describe("fuzzed files", () => {
     it("should handle infloop.wv without crashing", async () => {
+      // TypeScript-only test
       const f = await openWavPackFile("infloop.wv");
       expect(f.isValid).toBe(true);
     });
@@ -96,6 +102,7 @@ describe("WavPack", () => {
 
   describe("strip and properties", () => {
     it("should strip tags in-memory and reflect in properties", async () => {
+      // TypeScript-only test
       const data = readTestDataBV("click.wv");
       const stream = new ByteVectorStream(data);
       const f = await WavPackFile.open(stream, true, ReadStyle.Average);
@@ -124,6 +131,7 @@ describe("WavPack", () => {
     });
 
     it("should persist tag changes after save", async () => {
+      // TypeScript-only test
       const data = readTestDataBV("click.wv");
       const stream = new ByteVectorStream(data);
 
@@ -158,6 +166,7 @@ describe("WavPack", () => {
 
   describe("repeated save", () => {
     it("should handle multiple saves correctly", async () => {
+      // TypeScript-only test
       const data = readTestDataBV("click.wv");
       const stream = new ByteVectorStream(data);
 

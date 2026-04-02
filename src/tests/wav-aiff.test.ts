@@ -8,6 +8,7 @@ import { openTestStream, readTestData, readTestDataBV } from "./testHelper.js";
 
 describe("WAV", () => {
   it("should test PCM properties", async () => {
+    // TypeScript-only test
     const stream = openTestStream("empty.wav");
     const f = await WavFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -24,6 +25,7 @@ describe("WAV", () => {
   });
 
   it("should test ALAW properties", async () => {
+    // TypeScript-only test
     const stream = openTestStream("alaw.wav");
     const f = await WavFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -40,6 +42,7 @@ describe("WAV", () => {
   });
 
   it("should test float64 properties", async () => {
+    // TypeScript-only test
     const stream = openTestStream("float64.wav");
     const f = await WavFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -56,6 +59,7 @@ describe("WAV", () => {
   });
 
   it("should test float properties without fact chunk", async () => {
+    // TypeScript-only test
     // Remove the fact chunk by renaming it (change 'fact' to 'fakt')
     const wavData = readTestDataBV("float64.wav");
     expect(wavData.mid(36, 4).toString()).toBe("fact");
@@ -76,6 +80,7 @@ describe("WAV", () => {
   });
 
   it("should test WAVE_FORMAT_EXTENSIBLE properties", async () => {
+    // TypeScript-only test
     const stream = openTestStream("uint8we.wav");
     const f = await WavFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -92,6 +97,7 @@ describe("WAV", () => {
   });
 
   it("should test PCM with fact chunk properties", async () => {
+    // TypeScript-only test
     const stream = openTestStream("pcm_with_fact_chunk.wav");
     const f = await WavFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -108,12 +114,14 @@ describe("WAV", () => {
   });
 
   it("should handle zero-size data chunk", async () => {
+    // TypeScript-only test
     const stream = openTestStream("zero-size-chunk.wav");
     const f = await WavFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
   });
 
   it("should save and re-read ID3v2 tag", async () => {
+    // TypeScript-only test
     const wavData = readTestDataBV("empty.wav");
     const stream = new ByteVectorStream(wavData);
     let f = await WavFile.open(stream, true, ReadStyle.Average);
@@ -146,6 +154,7 @@ describe("WAV", () => {
   });
 
   it("should save ID3v2 v3 tag", async () => {
+    // TypeScript-only test
     const wavData = readTestDataBV("empty.wav");
     const stream = new ByteVectorStream(wavData);
     const xxx = "X".repeat(254);
@@ -165,6 +174,7 @@ describe("WAV", () => {
   });
 
   it("should save and re-read INFO tag", async () => {
+    // TypeScript-only test
     const wavData = readTestDataBV("empty.wav");
     const stream = new ByteVectorStream(wavData);
     let f = await WavFile.open(stream, true, ReadStyle.Average);
@@ -197,6 +207,7 @@ describe("WAV", () => {
   });
 
   it("should handle duplicate tags", async () => {
+    // TypeScript-only test
     const stream = openTestStream("duplicate_tags.wav");
     const f = await WavFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -215,6 +226,7 @@ describe("WAV", () => {
   });
 
   it("should handle infloop (fuzzed) wav file", async () => {
+    // TypeScript-only test
     const stream = openTestStream("infloop.wav");
     const f = await WavFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
@@ -228,12 +240,14 @@ describe("WAV", () => {
   });
 
   it("should handle segfault wav", async () => {
+    // TypeScript-only test
     const stream = openTestStream("segfault.wav");
     const f = await WavFile.open(stream, true, ReadStyle.Average);
     expect(f.isValid).toBe(true);
   });
 
   it("should handle invalid chunk wav file", async () => {
+    // TypeScript-only test
     // invalid-chunk.wav has an invalid chunk after a valid id3 chunk.
     // No fmt/data chunks, so audioProperties is null; C++ lengthInSeconds would be 0.
     const stream = openTestStream("invalid-chunk.wav");

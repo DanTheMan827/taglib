@@ -221,6 +221,14 @@ export class DsdiffFile extends File {
       } else {
         await this.setChildChunkData("DIAR", new ByteVector(), ChildChunkKind.DIIN);
       }
+
+      // If both sub-chunks are now empty, remove the DIIN container entirely.
+      if (this._diinTag.title === "" && this._diinTag.artist === "") {
+        await this.setRootChunkData("DIIN", new ByteVector());
+        this._childChunkIndex[ChildChunkKind.DIIN] = -1;
+        this._childChunks[ChildChunkKind.DIIN] = [];
+        this._hasDiin = false;
+      }
     }
 
     return true;
@@ -230,8 +238,8 @@ export class DsdiffFile extends File {
    * Removes the specified tag types from the file.
    *
    * Passing {@link DsdiffTagType.ID3v2} removes the ID3v2 chunk, passing
-   * {@link DsdiffTagType.DIIN} removes the DIIN sub-chunks, and passing both
-   * (or omitting the argument) removes all tags.
+   * {@link DsdiffTagType.DIIN} removes the DIIN sub-chunks and container, and
+   * passing both (or omitting the argument) removes all tags.
    *
    * @param tags Bitmask of tag types to remove (default: all tags).
    */
@@ -246,8 +254,12 @@ export class DsdiffFile extends File {
       this._hasID3v2 = false;
     }
     if (tags & DsdiffTagType.DIIN) {
+      // Remove sub-chunks then the DIIN root container.
       await this.setChildChunkData("DITI", new ByteVector(), ChildChunkKind.DIIN);
       await this.setChildChunkData("DIAR", new ByteVector(), ChildChunkKind.DIIN);
+      await this.setRootChunkData("DIIN", new ByteVector());
+      this._childChunkIndex[ChildChunkKind.DIIN] = -1;
+      this._childChunks[ChildChunkKind.DIIN] = [];
       this._diinTag = null;
       this._hasDiin = false;
     }
@@ -672,6 +684,11 @@ export class DsdiffFile extends File {
     for (let k = 0; k < 2; k++) {
       if (this._childChunkIndex[k] > i) {
         this._childChunkIndex[k]--;
+        // The container shifted back by chunkTotalSize; update its children's
+        // absolute offsets so subsequent child-chunk operations are correct.
+        for (const child of this._childChunks[k]) {
+          child.offset -= chunkTotalSize;
+        }
       }
     }
     this.updateRootChunkOffsets(i);
@@ -858,8 +875,11 @@ export class DsdiffFile extends File {
     } else if (kind === ChildChunkKind.DIIN) {
       let parentIdx = this._childChunkIndex[ChildChunkKind.DIIN];
       if (parentIdx < 0) {
-        // Create the DIIN root chunk
-        await this.setRootChunkData("DIIN", new ByteVector());
+        // Create the DIIN root chunk as an empty container, then append into it.
+        // NOTE: setRootChunkData skips creation when data is empty, so we must
+        // use appendRootChunk directly.
+        const diinName = ByteVector.fromString("DIIN", StringType.Latin1);
+        await this.appendRootChunk(diinName, new ByteVector());
         const lastIdx = this._chunks.length - 1;
         if (
           lastIdx >= 0 &&

@@ -80,6 +80,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("AttachedPictureFrame", () => {
     it("should parse APIC frame", () => {
+      // TypeScript-only test
       // From C++ testParseAPIC:
       // APIC \x00\x00\x00\x07 \x00\x00  \x00 m\x00 \x01 d\x00 \x00
       const raw = byteVectorFromArray([
@@ -100,6 +101,7 @@ describe("ID3v2", () => {
     });
 
     it("should parse APIC frame with UTF16 BOM", () => {
+      // TypeScript-only test
       const raw = byteVectorFromArray([
         0x41, 0x50, 0x49, 0x43, // "APIC"
         0x00, 0x00, 0x00, 0x26, // size = 38
@@ -126,6 +128,7 @@ describe("ID3v2", () => {
     });
 
     it("should render APIC frame", () => {
+      // TypeScript-only test
       const f = new AttachedPictureFrame(StringType.UTF8);
       f.mimeType = "image/png";
       f.pictureType = PictureType.BackCover;
@@ -159,6 +162,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("GeneralEncapsulatedObjectFrame", () => {
     it("should parse GEOB frame", () => {
+      // TypeScript-only test
       // GEOB \x00\x00\x00\x08 \x00\x00 \x00 m\x00 f\x00 d\x00 \x00
       const raw = byteVectorFromArray([
         0x47, 0x45, 0x4f, 0x42, // "GEOB"
@@ -178,6 +182,7 @@ describe("ID3v2", () => {
     });
 
     it("should render GEOB frame", () => {
+      // TypeScript-only test
       const f = new GeneralEncapsulatedObjectFrame(StringType.Latin1);
       f.mimeType = "application/octet-stream";
       f.fileName = "test.bin";
@@ -212,6 +217,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("PopularimeterFrame", () => {
     it("should parse POPM frame", () => {
+      // TypeScript-only test
       // POPM \x00\x00\x00\x17 \x00\x00 email@example.com\x00 \x02 \x00\x00\x00\x03
       const emailBytes = Array.from(new TextEncoder().encode("email@example.com"));
       const body = [...emailBytes, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03];
@@ -224,6 +230,7 @@ describe("ID3v2", () => {
     });
 
     it("should parse POPM without counter", () => {
+      // TypeScript-only test
       const emailBytes = Array.from(new TextEncoder().encode("email@example.com"));
       const body = [...emailBytes, 0x00, 0x02];
       const raw = buildRawFrame("POPM", body);
@@ -235,6 +242,7 @@ describe("ID3v2", () => {
     });
 
     it("should render POPM frame", () => {
+      // TypeScript-only test
       const f = new PopularimeterFrame();
       f.email = "email@example.com";
       f.rating = 2;
@@ -255,6 +263,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("RelativeVolumeFrame", () => {
     it("should parse relative volume frame", () => {
+      // TypeScript-only test
       // RVA2 \x00\x00\x00\x0B \x00\x00 ident\x00 \x02 \x00\x0F \x08 \x45
       const raw = byteVectorFromArray([
         0x52, 0x56, 0x41, 0x32, // "RVA2"
@@ -280,6 +289,7 @@ describe("ID3v2", () => {
     });
 
     it("should render relative volume frame", () => {
+      // TypeScript-only test
       const f = new RelativeVolumeFrame();
       f.identification = "ident";
       f.setVolumeAdjustment(15.0 / 512.0, ChannelType.FrontRight);
@@ -310,6 +320,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("UniqueFileIdentifierFrame", () => {
     it("should parse UFID frame", () => {
+      // TypeScript-only test
       // UFID \x00\x00\x00\x09 \x00\x00 owner\x00 \x00\x01\x02
       const raw = byteVectorFromArray([
         0x55, 0x46, 0x49, 0x44, // "UFID"
@@ -327,6 +338,7 @@ describe("ID3v2", () => {
     });
 
     it("should parse empty UFID frame", () => {
+      // TypeScript-only test
       const raw = byteVectorFromArray([
         0x55, 0x46, 0x49, 0x44, // "UFID"
         0x00, 0x00, 0x00, 0x01, // size = 1
@@ -340,6 +352,7 @@ describe("ID3v2", () => {
     });
 
     it("should render UFID frame", () => {
+      // TypeScript-only test
       const f = new UniqueFileIdentifierFrame(
         "owner",
         byteVectorFromArray([0x01, 0x02, 0x03]),
@@ -363,6 +376,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("UrlLinkFrame", () => {
     it("should parse URL link frame", () => {
+      // TypeScript-only test
       // WOAF \x00\x00\x00\x12 \x00\x00 http://example.com
       const urlBytes = Array.from(new TextEncoder().encode("http://example.com"));
       const raw = buildRawFrame("WOAF", urlBytes);
@@ -372,6 +386,7 @@ describe("ID3v2", () => {
     });
 
     it("should render URL link frame", () => {
+      // TypeScript-only test
       const f = new UrlLinkFrame(ByteVector.fromString("WOAF", StringType.Latin1));
       f.url = "http://example.com";
 
@@ -388,6 +403,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("UserUrlLinkFrame", () => {
     it("should parse user URL link frame", () => {
+      // TypeScript-only test
       // WXXX \x00\x00\x00\x17 \x00\x00 \x00 foo\x00 http://example.com
       const raw = byteVectorFromArray([
         0x57, 0x58, 0x58, 0x58, // "WXXX"
@@ -406,6 +422,7 @@ describe("ID3v2", () => {
     });
 
     it("should render user URL link frame", () => {
+      // TypeScript-only test
       const f = new UserUrlLinkFrame(StringType.Latin1);
       f.description = "foo";
       f.url = "http://example.com";
@@ -429,6 +446,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("OwnershipFrame", () => {
     it("should parse ownership frame", () => {
+      // TypeScript-only test
       // OWNE \x00\x00\x00\x19 \x00\x00 \x00 GBP1.99\x00 20120905 Beatport
       const raw = byteVectorFromArray([
         0x4f, 0x57, 0x4e, 0x45, // "OWNE"
@@ -450,6 +468,7 @@ describe("ID3v2", () => {
     });
 
     it("should render ownership frame", () => {
+      // TypeScript-only test
       const f = new OwnershipFrame(StringType.Latin1);
       f.pricePaid = "GBP1.99";
       f.datePurchased = "20120905";
@@ -475,6 +494,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("SynchronizedLyricsFrame", () => {
     it("should parse synchronized lyrics frame", () => {
+      // TypeScript-only test
       // SYLT \x00\x00\x00\x21 \x00\x00 \x00 eng \x02 \x01 foo\x00
       // Example\x00 \x00\x00\x04\xd2 Lyrics\x00 \x00\x00\x11\xd7
       const raw = byteVectorFromArray([
@@ -512,6 +532,7 @@ describe("ID3v2", () => {
     });
 
     it("should parse synchronized lyrics frame with empty description", () => {
+      // TypeScript-only test
       const raw = byteVectorFromArray([
         0x53, 0x59, 0x4c, 0x54, // "SYLT"
         0x00, 0x00, 0x00, 0x1e, // size = 30
@@ -540,6 +561,7 @@ describe("ID3v2", () => {
     });
 
     it("should render synchronized lyrics frame", () => {
+      // TypeScript-only test
       const f = new SynchronizedLyricsFrame(StringType.Latin1);
       f.language = ByteVector.fromString("eng", StringType.Latin1);
       f.timestampFormat = 2;
@@ -575,6 +597,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("EventTimingCodesFrame", () => {
     it("should parse event timing codes frame", () => {
+      // TypeScript-only test
       // ETCO \x00\x00\x00\x0b \x00\x00 \x02 \x02 \x00\x00\xf3\x5c \xfe \x00\x36\xee\x80
       const raw = byteVectorFromArray([
         0x45, 0x54, 0x43, 0x4f, // "ETCO"
@@ -598,6 +621,7 @@ describe("ID3v2", () => {
     });
 
     it("should render event timing codes frame", () => {
+      // TypeScript-only test
       const f = new EventTimingCodesFrame();
       f.timestampFormat = 2;
       f.synchedEvents = [
@@ -626,6 +650,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("CommentsFrame", () => {
     it("should parse comments frame", () => {
+      // TypeScript-only test
       // COMM \x00\x00\x00\x14 \x00\x00 \x03 deu Description\x00 Text
       const raw = byteVectorFromArray([
         0x43, 0x4f, 0x4d, 0x4d, // "COMM"
@@ -647,6 +672,7 @@ describe("ID3v2", () => {
     });
 
     it("should render comments frame with UTF16", () => {
+      // TypeScript-only test
       const f = new CommentsFrame(StringType.UTF16);
       f.language = ByteVector.fromString("eng", StringType.Latin1);
       f.description = "Description";
@@ -683,6 +709,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("PodcastFrame", () => {
     it("should parse podcast frame via factory", () => {
+      // TypeScript-only test
       const raw = byteVectorFromArray([
         0x50, 0x43, 0x53, 0x54, // "PCST"
         0x00, 0x00, 0x00, 0x04, // size = 4
@@ -696,6 +723,7 @@ describe("ID3v2", () => {
     });
 
     it("should render podcast frame", () => {
+      // TypeScript-only test
       const f = new PodcastFrame();
       const rendered = f.render(4);
       const expected = byteVectorFromArray([
@@ -714,6 +742,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("PrivateFrame", () => {
     it("should parse private frame", () => {
+      // TypeScript-only test
       // PRIV \x00\x00\x00\x0e \x00\x00 WM/Provider\x00 TL
       const raw = byteVectorFromArray([
         0x50, 0x52, 0x49, 0x56, // "PRIV"
@@ -731,6 +760,7 @@ describe("ID3v2", () => {
     });
 
     it("should render private frame", () => {
+      // TypeScript-only test
       const f = new PrivateFrame();
       f.owner = "WM/Provider";
       f.data = ByteVector.fromString("TL", StringType.Latin1);
@@ -753,6 +783,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("UserTextIdentificationFrame", () => {
     it("should parse TXXX without description", () => {
+      // TypeScript-only test
       // TXXX \x00\x00\x00\x06 \x00\x00 \x00 \x00 Text
       const raw = byteVectorFromArray([
         0x54, 0x58, 0x58, 0x58, // "TXXX"
@@ -771,6 +802,7 @@ describe("ID3v2", () => {
     });
 
     it("should parse TXXX with description", () => {
+      // TypeScript-only test
       // TXXX \x00\x00\x00\x11 \x00\x00 \x00 Description\x00 Text
       const raw = byteVectorFromArray([
         0x54, 0x58, 0x58, 0x58, // "TXXX"
@@ -789,6 +821,7 @@ describe("ID3v2", () => {
     });
 
     it("should render TXXX without description", () => {
+      // TypeScript-only test
       const f = new UserTextIdentificationFrame(StringType.Latin1);
       f.description = "";
       f.text = "Text";
@@ -807,6 +840,7 @@ describe("ID3v2", () => {
     });
 
     it("should render TXXX with description", () => {
+      // TypeScript-only test
       const f = new UserTextIdentificationFrame(StringType.Latin1);
       f.description = "Description";
       f.text = "Text";
@@ -830,6 +864,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("ChapterFrame", () => {
     it("should parse chapter frame without embedded frames", () => {
+      // TypeScript-only test
       // CHAP \x00\x00\x00\x12 \x00\x00 C\x00 times/offsets...
       const raw = byteVectorFromArray([
         0x43, 0x48, 0x41, 0x50, // "CHAP"
@@ -852,6 +887,7 @@ describe("ID3v2", () => {
     });
 
     it("should parse chapter frame with embedded TIT2 frame", () => {
+      // TypeScript-only test
       const raw = byteVectorFromArray([
         0x43, 0x48, 0x41, 0x50, // "CHAP"
         0x00, 0x00, 0x00, 0x20, // size = 32 (18 + 14)
@@ -889,6 +925,7 @@ describe("ID3v2", () => {
     });
 
     it("should render chapter frame", () => {
+      // TypeScript-only test
       // The TS ChapterFrame render appends a null terminator to the element ID,
       // so pass just "C" (without null) as the element ID.
       const f = new ChapterFrame(
@@ -929,6 +966,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("TableOfContentsFrame", () => {
     it("should parse table of contents frame", () => {
+      // TypeScript-only test
       const raw = byteVectorFromArray([
         0x43, 0x54, 0x4f, 0x43, // "CTOC"
         0x00, 0x00, 0x00, 0x16, // size = 22
@@ -966,6 +1004,7 @@ describe("ID3v2", () => {
     });
 
     it("should render table of contents frame", () => {
+      // TypeScript-only test
       const f = new TableOfContentsFrame(ByteVector.fromString("T", StringType.Latin1));
       f.isTopLevel = false;
       f.isOrdered = true;
@@ -1004,6 +1043,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("Genre handling", () => {
     it("should update genre 23_1 - v2.3 parenthesized genre", () => {
+      // TypeScript-only test
       // TCON with "(22)Death Metal" in v2.3 format
       const raw = byteVectorFromArray([
         0x54, 0x43, 0x4f, 0x4e, // "TCON"
@@ -1030,6 +1070,7 @@ describe("ID3v2", () => {
     });
 
     it("should update genre 24 - numeric genres with null separator", () => {
+      // TypeScript-only test
       // TCON with "14\0Eurodisco" in v2.4 format
       const raw = byteVectorFromArray([
         0x54, 0x43, 0x4f, 0x4e, // "TCON"
@@ -1064,6 +1105,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("duplicate tags", () => {
     it("should handle duplicate ID3v2 tags", async () => {
+      // TypeScript-only test
       const stream = openTestStream("duplicate_id3v2.mp3");
       const f = await MpegFile.open(stream, true, ReadStyle.Average);
 
@@ -1081,6 +1123,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("empty frame handling", () => {
     it("should save and re-read with empty WOAF frame", async () => {
+      // TypeScript-only test
       const data = readTestData("xing.mp3");
       const stream = new ByteVectorStream(data);
       const f = await MpegFile.open(stream, true, ReadStyle.Average);
@@ -1121,6 +1164,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("round-trip rendering", () => {
     it("should round-trip POPM frame", () => {
+      // TypeScript-only test
       const f = new PopularimeterFrame();
       f.email = "test@example.com";
       f.rating = 128;
@@ -1135,6 +1179,7 @@ describe("ID3v2", () => {
     });
 
     it("should round-trip UFID frame", () => {
+      // TypeScript-only test
       const f = new UniqueFileIdentifierFrame("http://musicbrainz.org", byteVectorFromArray([0xDE, 0xAD, 0xBE, 0xEF]));
       const rendered = f.render(4);
       const header = parseHeader(rendered);
@@ -1144,6 +1189,7 @@ describe("ID3v2", () => {
     });
 
     it("should round-trip comments frame", () => {
+      // TypeScript-only test
       const f = new CommentsFrame(StringType.UTF8);
       f.language = ByteVector.fromString("eng", StringType.Latin1);
       f.description = "My Comment";
@@ -1158,6 +1204,7 @@ describe("ID3v2", () => {
     });
 
     it("should round-trip APIC frame", () => {
+      // TypeScript-only test
       const f = new AttachedPictureFrame(StringType.Latin1);
       f.mimeType = "image/jpeg";
       f.pictureType = PictureType.FrontCover;
@@ -1174,6 +1221,7 @@ describe("ID3v2", () => {
     });
 
     it("should round-trip ownership frame", () => {
+      // TypeScript-only test
       const f = new OwnershipFrame(StringType.Latin1);
       f.pricePaid = "USD9.99";
       f.datePurchased = "20230101";
@@ -1188,6 +1236,7 @@ describe("ID3v2", () => {
     });
 
     it("should round-trip private frame", () => {
+      // TypeScript-only test
       const f = new PrivateFrame();
       f.owner = "com.example.app";
       f.data = byteVectorFromArray([0x01, 0x02, 0x03, 0x04]);
@@ -1200,6 +1249,7 @@ describe("ID3v2", () => {
     });
 
     it("should round-trip event timing codes frame", () => {
+      // TypeScript-only test
       const f = new EventTimingCodesFrame();
       f.timestampFormat = 2;
       f.synchedEvents = [
@@ -1222,6 +1272,7 @@ describe("ID3v2", () => {
     });
 
     it("should round-trip synchronized lyrics frame", () => {
+      // TypeScript-only test
       const f = new SynchronizedLyricsFrame(StringType.Latin1);
       f.language = ByteVector.fromString("fra", StringType.Latin1);
       f.timestampFormat = 2;
@@ -1244,6 +1295,7 @@ describe("ID3v2", () => {
     });
 
     it("should round-trip URL link frame", () => {
+      // TypeScript-only test
       const f = new UrlLinkFrame(ByteVector.fromString("WOAF", StringType.Latin1));
       f.url = "https://example.com/music";
 
@@ -1254,6 +1306,7 @@ describe("ID3v2", () => {
     });
 
     it("should round-trip user URL link frame", () => {
+      // TypeScript-only test
       const f = new UserUrlLinkFrame(StringType.Latin1);
       f.description = "Artist Website";
       f.url = "https://example.com/artist";
@@ -1266,6 +1319,7 @@ describe("ID3v2", () => {
     });
 
     it("should round-trip GEOB frame", () => {
+      // TypeScript-only test
       const f = new GeneralEncapsulatedObjectFrame(StringType.Latin1);
       f.mimeType = "text/plain";
       f.fileName = "notes.txt";
@@ -1287,6 +1341,7 @@ describe("ID3v2", () => {
   // =========================================================================
   describe("Id3v2Tag", () => {
     it("should add and retrieve frames", () => {
+      // TypeScript-only test
       const tag = new Id3v2Tag();
       const frame = new TextIdentificationFrame(
         ByteVector.fromString("TIT2", StringType.Latin1),
@@ -1299,12 +1354,14 @@ describe("ID3v2", () => {
     });
 
     it("should set genre with numeric ID", () => {
+      // TypeScript-only test
       const tag = new Id3v2Tag();
       tag.genre = "Rock";
       expect(tag.genre).toBe("Rock");
     });
 
     it("should remove frames", () => {
+      // TypeScript-only test
       const tag = new Id3v2Tag();
       const frame = new TextIdentificationFrame(
         ByteVector.fromString("TPE1", StringType.Latin1),

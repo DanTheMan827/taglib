@@ -40,15 +40,18 @@ describe("BlobStream", () => {
   // ── Construction & basic reads ─────────────────────────────────────────────
 
   it("initializes with a blob and length() returns the blob size", async () => {
+    // TypeScript-only test
     expect(await stream.length()).toBe(10);
   });
 
   it("reads all bytes sequentially", async () => {
+    // TypeScript-only test
     const result = await stream.readBlock(10);
     expect(result.data).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
   });
 
   it("reads the blob in multiple partial reads", async () => {
+    // TypeScript-only test
     const a = await stream.readBlock(4);
     const b = await stream.readBlock(3);
     const c = await stream.readBlock(10); // only 3 bytes left
@@ -59,12 +62,14 @@ describe("BlobStream", () => {
   });
 
   it("seek to middle then reads remaining bytes", async () => {
+    // TypeScript-only test
     await stream.seek(5);
     const result = await stream.readBlock(4);
     expect(result.data).toEqual(new Uint8Array([6, 7, 8, 9]));
   });
 
   it("seek from current position", async () => {
+    // TypeScript-only test
     await stream.readBlock(1); // position → 1
     await stream.seek(2, Position.Current); // position → 3
     const result = await stream.readBlock(2);
@@ -72,12 +77,14 @@ describe("BlobStream", () => {
   });
 
   it("seek from end", async () => {
+    // TypeScript-only test
     await stream.seek(-2, Position.End);
     const result = await stream.readBlock(2);
     expect(result.data).toEqual(new Uint8Array([9, 10]));
   });
 
   it("tell() tracks current position", async () => {
+    // TypeScript-only test
     expect(await stream.tell()).toBe(0);
     await stream.readBlock(3);
     expect(await stream.tell()).toBe(3);
@@ -86,6 +93,7 @@ describe("BlobStream", () => {
   });
 
   it("clear() resets position to beginning", async () => {
+    // TypeScript-only test
     await stream.readBlock(10);
     expect(await stream.tell()).toBe(10);
     await stream.clear();
@@ -95,29 +103,35 @@ describe("BlobStream", () => {
   });
 
   it("readBlock past end returns empty ByteVector", async () => {
+    // TypeScript-only test
     await stream.seek(0, Position.End);
     expect((await stream.readBlock(10)).isEmpty).toBe(true);
   });
 
   it("readBlock with length 0 returns empty ByteVector", async () => {
+    // TypeScript-only test
     expect((await stream.readBlock(0)).isEmpty).toBe(true);
   });
 
   it("readOnly() returns false", () => {
+    // TypeScript-only test
     expect(stream.readOnly()).toBe(false);
   });
 
   it("isOpen() returns true", () => {
+    // TypeScript-only test
     expect(stream.isOpen()).toBe(true);
   });
 
   // ── name() ─────────────────────────────────────────────────────────────────
 
   it("name() returns empty string for a plain Blob", () => {
+    // TypeScript-only test
     expect(stream.name()).toBe("");
   });
 
   it("name() returns the file name for a File object", () => {
+    // TypeScript-only test
     const file = new File([new Uint8Array([1, 2])], "audio.mp3", { type: "audio/mpeg" });
     expect(new BlobStream(file).name()).toBe("audio.mp3");
   });
@@ -125,6 +139,7 @@ describe("BlobStream", () => {
   // ── writeBlock ─────────────────────────────────────────────────────────────
 
   it("writeBlock overwrites existing bytes", async () => {
+    // TypeScript-only test
     await stream.seek(2);
     await stream.writeBlock(bv([99, 100]));
     expect(await streamContent(stream)).toEqual(
@@ -133,6 +148,7 @@ describe("BlobStream", () => {
   });
 
   it("writeBlock appends new data when writing past end", async () => {
+    // TypeScript-only test
     await stream.seek(10);
     await stream.writeBlock(bv([11, 12]));
     expect(await streamContent(stream)).toEqual(
@@ -142,6 +158,7 @@ describe("BlobStream", () => {
   });
 
   it("writeBlock advances the position", async () => {
+    // TypeScript-only test
     await stream.seek(0);
     await stream.writeBlock(bv([50, 51, 52]));
     expect(await stream.tell()).toBe(3);
@@ -150,6 +167,7 @@ describe("BlobStream", () => {
   // ── insert ─────────────────────────────────────────────────────────────────
 
   it("inserts data at start, replacing bytes", async () => {
+    // TypeScript-only test
     await stream.insert(bv([50, 51]), 0, 2);
     expect(await streamContent(stream)).toEqual(
       new Uint8Array([50, 51, 3, 4, 5, 6, 7, 8, 9, 10]),
@@ -157,6 +175,7 @@ describe("BlobStream", () => {
   });
 
   it("inserts data in middle, inserting more than replaced (net growth)", async () => {
+    // TypeScript-only test
     await stream.insert(bv([60, 61, 62, 63, 64, 65]), 4, 2);
     expect(await streamContent(stream)).toEqual(
       new Uint8Array([1, 2, 3, 4, 60, 61, 62, 63, 64, 65, 7, 8, 9, 10]),
@@ -164,11 +183,13 @@ describe("BlobStream", () => {
   });
 
   it("inserts data in middle, inserting fewer than replaced (net shrink)", async () => {
+    // TypeScript-only test
     await stream.insert(bv([60, 61, 62]), 4, 5);
     expect(await streamContent(stream)).toEqual(new Uint8Array([1, 2, 3, 4, 60, 61, 62, 10]));
   });
 
   it("inserts data at end, no overwrite", async () => {
+    // TypeScript-only test
     await stream.insert(bv([99]), 10);
     expect(await streamContent(stream)).toEqual(
       new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 99]),
@@ -176,6 +197,7 @@ describe("BlobStream", () => {
   });
 
   it("insert sets position to start + data.length", async () => {
+    // TypeScript-only test
     await stream.insert(bv([7, 8, 9]), 2, 0);
     expect(await stream.tell()).toBe(5); // 2 + 3
   });
@@ -183,28 +205,33 @@ describe("BlobStream", () => {
   // ── removeBlock ────────────────────────────────────────────────────────────
 
   it("removes a block from the middle", async () => {
+    // TypeScript-only test
     await stream.removeBlock(3, 4);
     expect(await streamContent(stream)).toEqual(new Uint8Array([1, 2, 3, 8, 9, 10]));
   });
 
   it("removes a block at the start", async () => {
+    // TypeScript-only test
     await stream.removeBlock(0, 3);
     expect(await streamContent(stream)).toEqual(new Uint8Array([4, 5, 6, 7, 8, 9, 10]));
   });
 
   it("removes a block at the end", async () => {
+    // TypeScript-only test
     await stream.removeBlock(7, 3);
     expect(await streamContent(stream)).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6, 7]));
     expect(await stream.length()).toBe(7);
   });
 
   it("removeBlock clamps position when it falls inside removed range", async () => {
+    // TypeScript-only test
     await stream.seek(5);
     await stream.removeBlock(3, 4); // removes bytes at 3-6, position was 5
     expect(await stream.tell()).toBe(3);
   });
 
   it("removeBlock adjusts position when it falls after removed range", async () => {
+    // TypeScript-only test
     await stream.seek(8);
     await stream.removeBlock(3, 4);
     expect(await stream.tell()).toBe(4); // 8 - 4
@@ -213,12 +240,14 @@ describe("BlobStream", () => {
   // ── truncate ───────────────────────────────────────────────────────────────
 
   it("truncates to a shorter length", async () => {
+    // TypeScript-only test
     await stream.truncate(5);
     expect(await streamContent(stream)).toEqual(new Uint8Array([1, 2, 3, 4, 5]));
     expect(await stream.length()).toBe(5);
   });
 
   it("truncates and zero-pads to a longer length", async () => {
+    // TypeScript-only test
     await stream.truncate(12);
     expect(await streamContent(stream)).toEqual(
       new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 0]),
@@ -227,6 +256,7 @@ describe("BlobStream", () => {
   });
 
   it("truncate clamps position when it exceeds new length", async () => {
+    // TypeScript-only test
     await stream.seek(8);
     await stream.truncate(5);
     expect(await stream.tell()).toBe(5);
@@ -235,6 +265,7 @@ describe("BlobStream", () => {
   // ── toBlob ─────────────────────────────────────────────────────────────────
 
   it("toBlob() returns the original content when unmodified", async () => {
+    // TypeScript-only test
     const blob = stream.toBlob();
     expect(new Uint8Array(await blob.arrayBuffer())).toEqual(
       new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
@@ -242,6 +273,7 @@ describe("BlobStream", () => {
   });
 
   it("toBlob() reflects writes correctly", async () => {
+    // TypeScript-only test
     await stream.seek(2);
     await stream.writeBlock(bv([99, 100]));
     const blob = stream.toBlob();
@@ -251,12 +283,14 @@ describe("BlobStream", () => {
   });
 
   it("toBlob() preserves the MIME type of the source blob", () => {
+    // TypeScript-only test
     const typed = new BlobStream(makeBlob([1, 2, 3], "audio/mpeg"));
     const blob = typed.toBlob();
     expect(blob.type).toBe("audio/mpeg");
   });
 
   it("toBlob() preserves the MIME type of a File source", () => {
+    // TypeScript-only test
     const file = new File([new Uint8Array([1, 2, 3])], "song.mp3", { type: "audio/mpeg" });
     const typed = new BlobStream(file);
     const blob = typed.toBlob();
@@ -264,6 +298,7 @@ describe("BlobStream", () => {
   });
 
   it("toBlob() returns empty blob when stream is empty", () => {
+    // TypeScript-only test
     const empty = new BlobStream(new Blob([]));
     const blob = empty.toBlob();
     expect(blob.size).toBe(0);
@@ -272,6 +307,7 @@ describe("BlobStream", () => {
   // ── round-trip: write → toBlob → new BlobStream → read ────────────────────
 
   it("round-trips content through toBlob correctly", async () => {
+    // TypeScript-only test
     await stream.seek(3);
     await stream.writeBlock(bv([77, 78, 79]));
     await stream.removeBlock(8, 2);
@@ -285,6 +321,7 @@ describe("BlobStream", () => {
   // ── File object ─────────────────────────────────────────────────────────────
 
   it("File object reads and writes correctly", async () => {
+    // TypeScript-only test
     const bytes = [0xaa, 0xbb, 0xcc, 0xdd];
     const file = new File([new Uint8Array(bytes)], "test.flac", { type: "audio/flac" });
     const s = new BlobStream(file);
@@ -298,6 +335,7 @@ describe("BlobStream", () => {
   // ── reads back correctly after multiple edits ──────────────────────────────
 
   it("reads back correctly after interleaved writes and inserts", async () => {
+    // TypeScript-only test
     await stream.insert(bv([20, 21]), 5); // [1,2,3,4,5,20,21,6,7,8,9,10], position → 7
     // insert() sets position to start + data.length; verify, then read from there
     expect(await stream.tell()).toBe(7);

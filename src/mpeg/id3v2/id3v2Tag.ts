@@ -523,6 +523,10 @@ export class Id3v2Tag extends Tag {
       result.append(footer.render(header));
     }
 
+    // Update the stored header tagSize so subsequent renders preserve padding,
+    // matching C++ TagLib which calls d->header.setTagSize() after render().
+    this._header.tagSize = header.tagSize;
+
     return result;
   }
 

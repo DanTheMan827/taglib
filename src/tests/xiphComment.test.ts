@@ -3,17 +3,20 @@ import { XiphComment } from "../ogg/xiphComment.js";
 
 describe("XiphComment", () => {
   it("should return 0 for year with no fields", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     expect(cmt.year).toBe(0);
   });
 
   it("should read year from YEAR field", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     cmt.addField("YEAR", "2009");
     expect(cmt.year).toBe(2009);
   });
 
   it("should prefer DATE over YEAR", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     cmt.addField("YEAR", "2009");
     cmt.addField("DATE", "2008");
@@ -21,6 +24,7 @@ describe("XiphComment", () => {
   });
 
   it("should set year to DATE and clear YEAR", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     cmt.addField("YEAR", "2009");
     cmt.addField("DATE", "2008");
@@ -31,17 +35,20 @@ describe("XiphComment", () => {
   });
 
   it("should return 0 for track with no fields", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     expect(cmt.track).toBe(0);
   });
 
   it("should read track from TRACKNUMBER", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     cmt.addField("TRACKNUMBER", "8");
     expect(cmt.track).toBe(8);
   });
 
   it("should set track to TRACKNUMBER", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     cmt.addField("TRACKNUMBER", "8");
     cmt.track = 3;
@@ -49,6 +56,7 @@ describe("XiphComment", () => {
   });
 
   it("should clear comment", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     cmt.addField("DESCRIPTION", "A comment");
     expect(cmt.comment).toBe("A comment");
@@ -57,6 +65,7 @@ describe("XiphComment", () => {
   });
 
   it("should remove field", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     cmt.addField("TITLE", "Test");
     cmt.addField("ARTIST", "Art");
@@ -66,6 +75,7 @@ describe("XiphComment", () => {
   });
 
   it("should add and replace fields", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     cmt.addField("ARTIST", "First", true);
     expect(cmt.fieldListMap().get("ARTIST")).toEqual(["First"]);
@@ -76,6 +86,7 @@ describe("XiphComment", () => {
   });
 
   it("should handle field count", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     expect(cmt.fieldCount).toBe(0);
     cmt.addField("TITLE", "Test");
@@ -87,6 +98,7 @@ describe("XiphComment", () => {
   });
 
   it("should render and re-parse", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     cmt.vendorId = "TestVendor";
     cmt.addField("TITLE", "Hello");
@@ -101,6 +113,7 @@ describe("XiphComment", () => {
   });
 
   it("should render with framing bit", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     cmt.vendorId = "Test";
     cmt.addField("TITLE", "Hello");
@@ -111,6 +124,7 @@ describe("XiphComment", () => {
   });
 
   it("should handle properties", () => {
+    // TypeScript-only test
     const cmt = new XiphComment();
     cmt.addField("TITLE", "Test Title");
     cmt.addField("ARTIST", "Test Artist");

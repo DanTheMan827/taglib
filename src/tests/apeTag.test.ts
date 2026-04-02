@@ -4,6 +4,7 @@ import { ByteVectorStream } from "../toolkit/byteVectorStream.js";
 
 describe("APE Tag", () => {
   it("should create empty tag", () => {
+    // TypeScript-only test
     const tag = new ApeTag();
     expect(tag.isEmpty).toBe(true);
     expect(tag.title).toBe("");
@@ -11,6 +12,7 @@ describe("APE Tag", () => {
   });
 
   it("should set and get tag properties", () => {
+    // TypeScript-only test
     const tag = new ApeTag();
     tag.title = "Test Title";
     tag.artist = "Test Artist";
@@ -31,6 +33,7 @@ describe("APE Tag", () => {
   });
 
   it("should manage items", () => {
+    // TypeScript-only test
     const tag = new ApeTag();
 
     const item = new ApeItem();
@@ -47,6 +50,7 @@ describe("APE Tag", () => {
   });
 
   it("should render and parse items", () => {
+    // TypeScript-only test
     const item = new ApeItem();
     item.key = "Title";
     item.values = ["Hello World"];
@@ -64,6 +68,7 @@ describe("APE Tag", () => {
   });
 
   it("should handle footer", () => {
+    // TypeScript-only test
     const footer = new ApeFooter();
     footer.version = 2000;
     footer.itemCount = 3;
@@ -82,6 +87,7 @@ describe("APE Tag", () => {
   });
 
   it("should render and re-parse full tag", async () => {
+    // TypeScript-only test
     const tag = new ApeTag();
     tag.title = "Render Test";
     tag.artist = "Artist";
@@ -108,6 +114,7 @@ describe("APE Tag", () => {
   });
 
   it("should handle properties", () => {
+    // TypeScript-only test
     const tag = new ApeTag();
     tag.title = "Prop Test";
     tag.artist = "Prop Artist";

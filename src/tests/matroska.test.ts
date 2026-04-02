@@ -21,6 +21,7 @@ async function openMatroskaFile(
 describe("Matroska", () => {
   describe("Properties", () => {
     it("should read MKA properties", async () => {
+      // TypeScript-only test
       const f = await openMatroskaFile("no-tags.mka");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -37,6 +38,7 @@ describe("Matroska", () => {
     });
 
     it("should read MKV properties", async () => {
+      // TypeScript-only test
       const f = await openMatroskaFile("tags-before-cues.mkv");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -53,6 +55,7 @@ describe("Matroska", () => {
     });
 
     it("should read WebM properties", async () => {
+      // TypeScript-only test
       const f = await openMatroskaFile("no-tags.webm");
       expect(f.isValid).toBe(true);
       const props = f.audioProperties();
@@ -69,6 +72,7 @@ describe("Matroska", () => {
     });
 
     it("should not read properties when readProperties=false", async () => {
+      // TypeScript-only test
       const f = await openMatroskaFile("no-tags.webm", false);
       expect(f.isValid).toBe(true);
       expect(f.audioProperties()).toBeNull();
@@ -77,6 +81,7 @@ describe("Matroska", () => {
 
   describe("Tags", () => {
     it("should read tags from MKV", async () => {
+      // TypeScript-only test
       const f = await openMatroskaFile("tags-before-cues.mkv");
       expect(f.isValid).toBe(true);
       // tags-before-cues.mkv has a TITLE tag added by Handbrake
@@ -85,6 +90,7 @@ describe("Matroska", () => {
     });
 
     it("should handle file with no tags", async () => {
+      // TypeScript-only test
       const f = await openMatroskaFile("no-tags.mka");
       // No tags element in the file - always returns an empty tag
       const tag = f.tag();
@@ -93,6 +99,7 @@ describe("Matroska", () => {
     });
 
     it("should support PropertyMap interface", async () => {
+      // TypeScript-only test
       const f = await openMatroskaFile("tags-before-cues.mkv");
       // The file should be readable and produce a PropertyMap
       const props = f.properties();
@@ -102,6 +109,7 @@ describe("Matroska", () => {
 
   describe("Save and re-read", () => {
     it("should save and re-read tags for MKA (no existing tags)", async () => {
+      // TypeScript-only test
       const f = await openMatroskaFile("no-tags.mka");
       expect(f.isValid).toBe(true);
 
@@ -132,6 +140,7 @@ describe("Matroska", () => {
 
   describe("FileRef integration", () => {
     it("should detect MKA by extension", async () => {
+      // TypeScript-only test
       const data = readFileSync(resolve(TEST_DATA_DIR, "no-tags.mka"));
       const ref = await FileRef.fromByteArray(new Uint8Array(data), "test.mka");
       expect(ref.isValid).toBe(true);
@@ -140,18 +149,21 @@ describe("Matroska", () => {
     });
 
     it("should detect MKV by extension", async () => {
+      // TypeScript-only test
       const data = readFileSync(resolve(TEST_DATA_DIR, "tags-before-cues.mkv"));
       const ref = await FileRef.fromByteArray(new Uint8Array(data), "test.mkv");
       expect(ref.isValid).toBe(true);
     });
 
     it("should detect WebM by extension", async () => {
+      // TypeScript-only test
       const data = readFileSync(resolve(TEST_DATA_DIR, "no-tags.webm"));
       const ref = await FileRef.fromByteArray(new Uint8Array(data), "test.webm");
       expect(ref.isValid).toBe(true);
     });
 
     it("should detect Matroska by content", async () => {
+      // TypeScript-only test
       const data = readFileSync(resolve(TEST_DATA_DIR, "no-tags.mka"));
       // Pass no extension so it falls through to content detection
       const ref = await FileRef.fromByteArray(new Uint8Array(data), "test.unknown");
@@ -162,6 +174,7 @@ describe("Matroska", () => {
 
   describe("Tag title fallback", () => {
     it("should use segment title when no TITLE tag present", async () => {
+      // TypeScript-only test
       const f = await openMatroskaFile("tags-before-cues.mkv");
       // MKV with "handbrake" as segment title
       const props = f.audioProperties();
