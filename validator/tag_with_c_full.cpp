@@ -240,7 +240,7 @@ static bool tagDSDIFF(const std::string &path) {
 }
 
 static bool tagOGGFlac(const std::string &path) {
-  TagLib::OggFlac::File f(path.c_str());
+  TagLib::Ogg::FLAC::File f(path.c_str());
   if (!f.isValid()) return false;
   applyBasicTags(f.tag());
   f.tag()->removeAllPictures();

@@ -172,7 +172,7 @@ static std::vector<PictureInfo> getPictures(const std::string &path, const std::
     TagLib::DSDIFF::File f(path.c_str());
     if (f.isValid() && f.hasID3v2Tag()) addAPIC(f.ID3v2Tag());
   } else if (ext == ".oga") {
-    TagLib::OggFlac::File f(path.c_str());
+    TagLib::Ogg::FLAC::File f(path.c_str());
     if (f.isValid()) addXiphPic(f.tag());
   } else if (ext == ".asf" || ext == ".wma") {
     TagLib::ASF::File f(path.c_str());

@@ -177,6 +177,22 @@ These rules are **mandatory** and must never be violated:
     // TypeScript-only test
     ```
 
+11. **C validators must build and all cross-validation tests must pass.**
+    The C validator programs (`validator/taglib_validate.cpp` and
+    `validator/tag_with_c_full.cpp`) must compile without errors or warnings.
+    Any change to these files **must be verified** by building them locally
+    before committing:
+    ```sh
+    cmake -B validator/build -S validator
+    cmake --build validator/build
+    ```
+    Build against the TagLib submodule in CI (not the system library), so
+    always verify that the headers and namespaces used match the submodule
+    (currently v2.2.1).  All cross-validation tests in
+    `cTagLibValidation.test.ts` must pass with the built validators, verifying
+    byte-identical output between C++ TagLib and taglib-ts for every writable
+    format.
+
 ### Adding a New Format
 
 1. Create `src/<format>/` directory with at minimum:
