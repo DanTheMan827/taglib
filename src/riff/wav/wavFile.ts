@@ -11,6 +11,21 @@ import type { ReadStyle } from "../../toolkit/types.js";
 import type { IOStream } from "../../toolkit/ioStream.js";
 
 /**
+ * Bitmask identifying which tag formats are present in a WAV file.
+ * Used with {@link WavFile.strip} to select which tags to remove.
+ */
+export enum WavTagTypes {
+  /** No tag types. */
+  NoTags  = 0x0000,
+  /** Matches ID3v2 tags. */
+  ID3v2   = 0x0001,
+  /** Matches RIFF INFO tags. */
+  Info    = 0x0002,
+  /** Matches all tag types. */
+  AllTags = 0xffff,
+}
+
+/**
  * WAV file handler.
  *
  * WAV is a little-endian RIFF container (`"RIFF"` / `"WAVE"`) that may hold:
@@ -151,6 +166,27 @@ export class WavFile extends RiffFile {
     }
 
     return true;
+  }
+
+  /**
+   * Removes the tag types indicated by `tags` from the in-memory representation.
+   * Changes are written to disk the next time {@link save} is called.
+   * @param tags - Bitmask of {@link WavTagTypes} to strip (default: all).
+   */
+  strip(tags: WavTagTypes = WavTagTypes.AllTags): void {
+    if (tags & WavTagTypes.ID3v2) {
+      this._id3v2Tag = new Id3v2Tag();
+      this._id3v2ChunkIndex = -1;
+    }
+    if (tags & WavTagTypes.Info) {
+      this._infoTag = null;
+      this._infoChunkIndex = -1;
+    }
+    // Rebuild the combined tag from the surviving sub-tags
+    const combinedTags: Tag[] = [];
+    if (this._id3v2Tag) combinedTags.push(this._id3v2Tag);
+    if (this._infoTag) combinedTags.push(this._infoTag);
+    this._combinedTag.setTags(combinedTags);
   }
 
   // ---------------------------------------------------------------------------

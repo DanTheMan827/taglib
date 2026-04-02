@@ -255,8 +255,29 @@ export class XiphComment extends Tag {
    * Remove all values for the specified field key.
    * @param key - Field name (case-insensitive).
    */
-  removeField(key: string): void {
-    this._fields.delete(key.toUpperCase());
+  removeField(key: string): void;
+  /**
+   * Remove a specific value from the specified field key.
+   * Other values for the same key are left intact.
+   * @param key - Field name (case-insensitive).
+   * @param value - The exact value to remove.
+   */
+  removeField(key: string, value: string): void;
+  removeField(key: string, value?: string): void {
+    const upperKey = key.toUpperCase();
+    if (value === undefined) {
+      this._fields.delete(upperKey);
+    } else {
+      const existing = this._fields.get(upperKey);
+      if (existing) {
+        const filtered = existing.filter(v => v !== value);
+        if (filtered.length === 0) {
+          this._fields.delete(upperKey);
+        } else {
+          this._fields.set(upperKey, filtered);
+        }
+      }
+    }
   }
 
   /** Remove all fields from this comment, leaving an empty tag. */
@@ -271,6 +292,23 @@ export class XiphComment extends Tag {
    */
   contains(key: string): boolean {
     return this._fields.has(key.toUpperCase());
+  }
+
+  /**
+   * Validate a Vorbis comment field key.
+   *
+   * Keys must consist only of ASCII characters in the range 0x20–0x7D,
+   * excluding `'='` (0x3D), and must be at least one character long.
+   * @param key - The field key to validate.
+   * @returns `true` if the key is valid.
+   */
+  static checkKey(key: string): boolean {
+    if (key.length === 0) return false;
+    for (let i = 0; i < key.length; i++) {
+      const c = key.charCodeAt(i);
+      if (c < 0x20 || c > 0x7D || c === 0x3D) return false;
+    }
+    return true;
   }
 
   // ---------------------------------------------------------------------------

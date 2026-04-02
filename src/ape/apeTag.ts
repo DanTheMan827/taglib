@@ -412,6 +412,18 @@ export class ApeTag extends Tag {
     return [...this._items];
   }
 
+  /**
+   * Returns a map of item key (upper-cased) to item, mirroring the C++ `itemListMap()`.
+   * @returns A `Map` from uppercased item key to the corresponding {@link ApeItem}.
+   */
+  itemListMap(): Map<string, ApeItem> {
+    const map = new Map<string, ApeItem>();
+    for (const item of this._items) {
+      map.set(item.key.toUpperCase(), item);
+    }
+    return map;
+  }
+
   /** Find an item by key (case-insensitive). */
   item(key: string): ApeItem | undefined {
     const upper = key.toUpperCase();

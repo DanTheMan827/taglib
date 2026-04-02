@@ -409,6 +409,25 @@ export class Id3v2Tag extends Tag {
   }
 
   /**
+   * Returns a map of frame ID to frame list, grouping all frames by their four-character ID.
+   * This mirrors the C++ `frameListMap()` method.
+   * @returns A `Map` from frame ID string to the array of frames with that ID.
+   */
+  frameListMap(): Map<string, Id3v2Frame[]> {
+    const map = new Map<string, Id3v2Frame[]>();
+    for (const frame of this._frames) {
+      const id = frame.header.frameId.toString(StringType.Latin1);
+      let list = map.get(id);
+      if (!list) {
+        list = [];
+        map.set(id, list);
+      }
+      list.push(frame);
+    }
+    return map;
+  }
+
+  /**
    * Returns all frames matching the given frame ID.
    * @param frameId - A four-character frame ID string or `ByteVector`.
    * @returns An array of matching frames (may be empty).
