@@ -136,7 +136,25 @@ jobs:
           path: "*.tgz"
 
       - name: Test
-        run: npm test
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "<pre>" -n >> $GITHUB_STEP_SUMMARY
+          npm test | tee test-summary.txt
+          npx -y ansi-to-html test-summary.txt >> $GITHUB_STEP_SUMMARY
+          echo "</pre>" >> $GITHUB_STEP_SUMMARY
+          rm test-summary.txt
+        env:
+          TAGLIB_VALIDATE: ${{ github.workspace }}/validator/build/taglib_validate
+          TAGLIB_TAGGER: ${{ github.workspace }}/validator/build/tag_with_c_full
+
+      - name: Benchmark
+        run: |
+          echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo "<pre>" -n >> $GITHUB_STEP_SUMMARY
+          npm run bench | tee bench-summary.txt
+          npx -y ansi-to-html bench-summary.txt >> $GITHUB_STEP_SUMMARY
+          echo "</pre>" >> $GITHUB_STEP_SUMMARY
+          rm bench-summary.txt
         env:
           TAGLIB_VALIDATE: ${{ github.workspace }}/validator/build/taglib_validate
           TAGLIB_TAGGER: ${{ github.workspace }}/validator/build/tag_with_c_full
