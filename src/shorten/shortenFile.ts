@@ -91,6 +91,12 @@ class VariableLengthInput {
    * @returns An object with `value` (the decoded integer) and `ok` (`false` on EOF).
    */
   async getRiceGolombCode(k: number): Promise<{ value: number; ok: boolean }> {
+    // k must be in [0, 31]: values outside this range would cause a shift by 32
+    // (UB for int32_t in C++) or negative shifts, and are invalid for this format.
+    if (k < 0 || k > 31) {
+      return { value: 0, ok: false };
+    }
+
     const MASK_TABLE = [
       0x0,
       0x1,        0x3,        0x7,        0xf,
