@@ -267,11 +267,31 @@ export class MatroskaFile extends File {
         }
         return true;
       } else {
-        // New element is larger — replace existing with Void, append new at EOF
-        const voidEl = renderVoidElement(oldTotalSize);
-        await this._stream.seek(existing.offset, Position.Beginning);
-        await this._stream.writeBlock(voidEl);
-        await this.appendAtEndOfSegment(newData, elementId);
+        // New element is larger than existing.
+        const existingEnd = existing.offset + oldTotalSize;
+        const fileLength = await this._stream.length();
+        if (existingEnd >= fileLength) {
+          // Existing element is at EOF — overwrite in place and extend the file.
+          // The offset stays the same so no SeekHead update is needed.
+          await this._stream.seek(existing.offset, Position.Beginning);
+          await this._stream.writeBlock(newData);
+          // Update segment size
+          if (this._segmentSizeVintOffset >= 0 && this._segmentSizeVintLength > 0
+              && this._segmentDataOffset >= 0) {
+            const newSegmentDataSize = existing.offset + newData.length - this._segmentDataOffset;
+            const newSizeVint = encodeVint(newSegmentDataSize, this._segmentSizeVintLength);
+            if (newSizeVint.length === this._segmentSizeVintLength) {
+              await this._stream.seek(this._segmentSizeVintOffset, Position.Beginning);
+              await this._stream.writeBlock(newSizeVint);
+            }
+          }
+        } else {
+          // Existing element is not at EOF — replace with Void, append new at EOF
+          const voidEl = renderVoidElement(oldTotalSize);
+          await this._stream.seek(existing.offset, Position.Beginning);
+          await this._stream.writeBlock(voidEl);
+          await this.appendAtEndOfSegment(newData, elementId);
+        }
         return true;
       }
     } else {
