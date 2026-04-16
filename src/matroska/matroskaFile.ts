@@ -4,13 +4,16 @@ import { IOStream } from "../toolkit/ioStream.js";
 import { Position, ReadStyle } from "../toolkit/types.js";
 import { PropertyMap } from "../toolkit/propertyMap.js";
 import type { VariantMap } from "../toolkit/variant.js";
+import { Variant } from "../toolkit/variant.js";
 import { ByteVector } from "../byteVector.js";
-import { MatroskaTag } from "./matroskaTag.js";
+import { MatroskaTag, type AttachedFile } from "./matroskaTag.js";
 import { MatroskaProperties } from "./matroskaProperties.js";
+import { MatroskaChapters } from "./matroskaChapters.js";
 import {
   EbmlId,
   idSize,
   readElement,
+  readElementId,
   skipElement,
   findElement,
   readChildElements,
@@ -25,6 +28,47 @@ import {
   renderUintElement,
   type EbmlElement,
 } from "./ebml/ebmlElement.js";
+
+/**
+ * Returns the complex property key corresponding to an attached file.
+ * @param af - The attached file.
+ * @returns `"PICTURE"` for images, fileName if set, mediaType if set, otherwise uid as string.
+ */
+function keyForAttachedFile(af: AttachedFile): string {
+  if (af.mediaType.startsWith("image/")) return "PICTURE";
+  if (af.fileName) return af.fileName;
+  if (af.mediaType) return af.mediaType;
+  return af.uid ? String(af.uid) : "";
+}
+
+/**
+ * Returns `true` if the given key matches the attached file.
+ * @param key - The complex property key.
+ * @param af - The attached file.
+ */
+function keyMatchesAttachedFile(key: string, af: AttachedFile): boolean {
+  if (!key) return false;
+  return (
+    (key === "PICTURE" && af.mediaType.startsWith("image/")) ||
+    key === af.fileName ||
+    key === af.mediaType ||
+    (af.uid !== 0 && key === String(af.uid))
+  );
+}
+
+/**
+ * Generate a random 64-bit attachment UID (as a number, may lose precision for large values).
+ * Mimics TagLib's random UID generation.
+ */
+function generateAttachmentUid(): number {
+  // Use crypto random bytes to generate a non-zero UID
+  const arr = new Uint32Array(2);
+  crypto.getRandomValues(arr);
+  // Combine two 32-bit values into a safe integer range (lower 53 bits)
+  const hi = arr[0] & 0x1FFFFF; // 21 bits
+  const lo = arr[1] >>> 0;       // 32 bits
+  return hi * 0x100000000 + lo || 1;
+}
 
 /**
  * An implementation of TagLib::File for Matroska containers
@@ -43,6 +87,10 @@ export class MatroskaFile extends File {
   private _tagsEl: EbmlElement | null = null;
   /** The parsed Attachments EBML element, or `null` if absent. */
   private _attachmentsEl: EbmlElement | null = null;
+  /** The parsed chapters, or `null` if absent. */
+  private _chapters: MatroskaChapters | null = null;
+  /** The parsed Chapters EBML element, or `null` if absent. */
+  private _chaptersEl: EbmlElement | null = null;
   // Segment size VINT location: byte offset right after the segment ID
   /** Byte offset of the segment size VINT, or -1 if unknown. */
   private _segmentSizeVintOffset: number = -1;
@@ -95,6 +143,18 @@ export class MatroskaFile extends File {
     return this._tag;
   }
 
+  /**
+   * Returns the chapters object, optionally creating it if not present.
+   * @param create - If `true`, creates an empty chapters object when absent.
+   * @returns The chapters object, or `null` if absent and `create` is `false`.
+   */
+  chapters(create: boolean = false): MatroskaChapters | null {
+    if (!this._chapters && create) {
+      this._chapters = new MatroskaChapters();
+    }
+    return this._chapters;
+  }
+
   /** Returns the audio properties, or `null` if not parsed. */
   audioProperties(): MatroskaProperties | null {
     return this._properties;
@@ -121,6 +181,7 @@ export class MatroskaFile extends File {
     // Render the new Tags element (null if empty)
     const newTagsData = this._tag.renderTags();
     const newAttachmentsData = this._tag.renderAttachments();
+    const newChaptersData = this._chapters?.renderChapters() ?? null;
 
     // Replace or insert Tags element
     const tagsOk = await this.replaceOrInsertElement(
@@ -136,7 +197,14 @@ export class MatroskaFile extends File {
       EbmlId.Attachments,
     );
 
-    return tagsOk && attachOk;
+    // Replace or insert Chapters element
+    const chaptersOk = await this.replaceOrInsertElement(
+      this._chaptersEl,
+      newChaptersData,
+      EbmlId.Chapters,
+    );
+
+    return tagsOk && attachOk && chaptersOk;
   }
 
   /**
@@ -151,7 +219,29 @@ export class MatroskaFile extends File {
     if (!newData || newData.length === 0) {
       // If empty and no existing element, nothing to do
       if (!existing) return true;
-      // If there's an existing element, replace with Void
+
+      await this.removeSeekHeadEntry(elementId);
+
+      // If the element is at the end of the file, truncate instead of voiding.
+      // This allows save→clear to restore the file to its pre-write state (C++ parity).
+      const elementEnd = existing.offset + existing.headSize + existing.dataSize;
+      const fileLength = await this._stream.length();
+      if (elementEnd >= fileLength) {
+        await this._stream.truncate(existing.offset);
+        // Shrink the segment size VINT to reflect the truncation
+        if (this._segmentSizeVintOffset >= 0 && this._segmentSizeVintLength > 0
+            && this._segmentDataOffset >= 0) {
+          const newSegmentDataSize = existing.offset - this._segmentDataOffset;
+          const newSizeVint = encodeVint(newSegmentDataSize, this._segmentSizeVintLength);
+          if (newSizeVint.length === this._segmentSizeVintLength) {
+            await this._stream.seek(this._segmentSizeVintOffset, Position.Beginning);
+            await this._stream.writeBlock(newSizeVint);
+          }
+        }
+        return true;
+      }
+
+      // Otherwise replace with Void
       const voidEl = renderVoidElement(existing.headSize + existing.dataSize);
       await this._stream.seek(existing.offset, Position.Beginning);
       await this._stream.writeBlock(voidEl);
@@ -177,11 +267,31 @@ export class MatroskaFile extends File {
         }
         return true;
       } else {
-        // New element is larger — replace existing with Void, append new at EOF
-        const voidEl = renderVoidElement(oldTotalSize);
-        await this._stream.seek(existing.offset, Position.Beginning);
-        await this._stream.writeBlock(voidEl);
-        await this.appendAtEndOfSegment(newData, elementId);
+        // New element is larger than existing.
+        const existingEnd = existing.offset + oldTotalSize;
+        const fileLength = await this._stream.length();
+        if (existingEnd >= fileLength) {
+          // Existing element is at EOF — overwrite in place and extend the file.
+          // The offset stays the same so no SeekHead update is needed.
+          await this._stream.seek(existing.offset, Position.Beginning);
+          await this._stream.writeBlock(newData);
+          // Update segment size
+          if (this._segmentSizeVintOffset >= 0 && this._segmentSizeVintLength > 0
+              && this._segmentDataOffset >= 0) {
+            const newSegmentDataSize = existing.offset + newData.length - this._segmentDataOffset;
+            const newSizeVint = encodeVint(newSegmentDataSize, this._segmentSizeVintLength);
+            if (newSizeVint.length === this._segmentSizeVintLength) {
+              await this._stream.seek(this._segmentSizeVintOffset, Position.Beginning);
+              await this._stream.writeBlock(newSizeVint);
+            }
+          }
+        } else {
+          // Existing element is not at EOF — replace with Void, append new at EOF
+          const voidEl = renderVoidElement(oldTotalSize);
+          await this._stream.seek(existing.offset, Position.Beginning);
+          await this._stream.writeBlock(voidEl);
+          await this.appendAtEndOfSegment(newData, elementId);
+        }
         return true;
       }
     } else {
@@ -215,6 +325,25 @@ export class MatroskaFile extends File {
    * exceed the combined SeekHead + Void space, the update is silently skipped.
    */
   private async updateSeekHeadEntry(elementId: number, relativeOffset: number): Promise<void> {
+    await this._modifySeekHeadEntry(elementId, relativeOffset);
+  }
+
+  /**
+   * Remove an element's entry from the SeekHead in-place.
+   * Called when an element is voided out and no longer exists in the file.
+   * @param elementId - The EBML element ID to remove from the SeekHead.
+   */
+  private async removeSeekHeadEntry(elementId: number): Promise<void> {
+    await this._modifySeekHeadEntry(elementId, null);
+  }
+
+  /**
+   * Internal helper: re-read the SeekHead, add/update or remove an entry for
+   * `elementId`, and write the updated SeekHead back to the stream.
+   * @param elementId - The EBML element ID to modify.
+   * @param relativeOffset - New relative offset to set, or `null` to remove the entry.
+   */
+  private async _modifySeekHeadEntry(elementId: number, relativeOffset: number | null): Promise<void> {
     if (!this._seekHeadEl) return;
 
     // Re-parse the existing SeekHead entries from the stream
@@ -236,8 +365,12 @@ export class MatroskaFile extends File {
       }
     }
 
-    // Add or update entry, then sort by offset
-    entries.set(elementId, relativeOffset);
+    // Add/update or remove the entry
+    if (relativeOffset !== null) {
+      entries.set(elementId, relativeOffset);
+    } else {
+      entries.delete(elementId);
+    }
     const sortedEntries = [...entries.entries()].sort((a, b) => a[1] - b[1]);
 
     // Render each Seek element: SeekID (binary element ID) + SeekPosition (uint)
@@ -276,10 +409,33 @@ export class MatroskaFile extends File {
       newSeekHeadData,
     ]));
 
+    // Update the in-memory SeekHead element descriptor to reflect the new size
+    // (so the next call to updateSeekHeadEntry reads the correct number of bytes)
+    const newSeekHeadHeadSize = newSeekHeadIdSize + newSeekHeadSizeVint.length;
+    this._seekHeadEl = {
+      id: EbmlId.SeekHead,
+      dataSize: newSeekHeadData.length,
+      headSize: newSeekHeadHeadSize,
+      offset: this._seekHeadEl.offset,
+    };
+
     // Fill remaining space with a C++-compatible Void element
     const remaining = totalAvailable - newSeekHeadTotal;
     if (remaining >= 1) {
-      await this._stream.writeBlock(this.renderTaglibCompatVoidElement(remaining));
+      const voidEl = this.renderTaglibCompatVoidElement(remaining);
+      await this._stream.writeBlock(voidEl);
+      // Compute the head size of the void element to update _voidAfterSeekHeadEl
+      const voidIdSize = 1; // 0xEC is 1-byte ID
+      const voidSizeVintLength = Math.min(remaining - voidIdSize, 8);
+      const voidDataSize = remaining - voidIdSize - voidSizeVintLength;
+      this._voidAfterSeekHeadEl = {
+        id: EbmlId.VoidElement,
+        dataSize: voidDataSize,
+        headSize: voidIdSize + voidSizeVintLength,
+        offset: this._seekHeadEl.offset + newSeekHeadHeadSize + newSeekHeadData.length,
+      };
+    } else {
+      this._voidAfterSeekHeadEl = null;
     }
   }
 
@@ -302,8 +458,13 @@ export class MatroskaFile extends File {
       const oldSegmentDataSize = newElementAbsoluteOffset - this._segmentDataOffset;
       const newSegmentDataSize = oldSegmentDataSize + data.length;
       const newSizeVint = encodeVint(newSegmentDataSize, this._segmentSizeVintLength);
-      await this._stream.seek(this._segmentSizeVintOffset, Position.Beginning);
-      await this._stream.writeBlock(newSizeVint);
+      // Only write the size VINT if it fits in the original allocated space.
+      // If the new size requires more bytes, skip the update to avoid overwriting
+      // the first byte(s) of segment content.
+      if (newSizeVint.length === this._segmentSizeVintLength) {
+        await this._stream.seek(this._segmentSizeVintOffset, Position.Beginning);
+        await this._stream.writeBlock(newSizeVint);
+      }
     }
 
     // Update the SeekHead to point to the new element
@@ -344,7 +505,21 @@ export class MatroskaFile extends File {
 
   /** Returns the list of supported complex property keys (e.g. `"PICTURE"`). */
   override complexPropertyKeys(): string[] {
-    return this._tag?.complexPropertyKeys() ?? [];
+    // Start with complex simple-tag keys from the tag
+    const keys = this._tag?.complexPropertyKeys() ?? [];
+    // Add attachment keys
+    const attachedFiles = this._tag?.attachedFiles ?? [];
+    for (const af of attachedFiles) {
+      const k = keyForAttachedFile(af);
+      if (k && !keys.includes(k)) {
+        keys.push(k);
+      }
+    }
+    // Add CHAPTERS if present
+    if (this._chapters && !this._chapters.isEmpty() && !keys.includes("CHAPTERS")) {
+      keys.push("CHAPTERS");
+    }
+    return keys;
   }
 
   /**
@@ -353,6 +528,23 @@ export class MatroskaFile extends File {
    * @returns An array of variant maps, one per complex property value.
    */
   override complexProperties(key: string): VariantMap[] {
+    if (key.toUpperCase() === "CHAPTERS") {
+      return this._chapters?.toComplexProperties() ?? [];
+    }
+    // Check if any attachments match this key
+    const attachedFiles = this._tag?.attachedFiles ?? [];
+    const matchingFiles = attachedFiles.filter(af => keyMatchesAttachedFile(key, af));
+    if (matchingFiles.length > 0) {
+      return matchingFiles.map(af => {
+        const m: VariantMap = new Map();
+        m.set("data", Variant.fromByteVector(af.data));
+        m.set("mimeType", Variant.fromString(af.mediaType));
+        m.set("description", Variant.fromString(af.description));
+        m.set("fileName", Variant.fromString(af.fileName));
+        m.set("uid", Variant.fromULongLong(BigInt(af.uid)));
+        return m;
+      });
+    }
     return this._tag?.complexProperties(key) ?? [];
   }
 
@@ -363,7 +555,69 @@ export class MatroskaFile extends File {
    * @returns `true` if the key was handled, `false` otherwise.
    */
   override setComplexProperties(key: string, value: VariantMap[]): boolean {
-    return this._tag?.setComplexProperties(key, value) ?? false;
+    if (key.toUpperCase() === "CHAPTERS") {
+      if (value.length === 0) {
+        this._chapters = null;
+      } else {
+        if (!this._chapters) {
+          this._chapters = new MatroskaChapters();
+        }
+        this._chapters.fromComplexProperties(value);
+      }
+      return true;
+    }
+
+    if (!this._tag) {
+      this._tag = new MatroskaTag();
+    }
+
+    // Try complex simple-tag handling first (DURATION with trackUid, etc.)
+    if (this._tag.setComplexProperties(key, value)) {
+      return true;
+    }
+
+    // Handle attachment-typed complex properties (PICTURE, file.ttf, font/ttf, etc.)
+    // Remove existing attached files matching this key
+    this._tag.attachedFiles = this._tag.attachedFiles.filter(
+      af => !keyMatchesAttachedFile(key, af),
+    );
+
+    for (const m of value) {
+      if (m.size === 0) continue;
+      let mimeType = m.get("mimeType")?.toString() ?? "";
+      const data = m.get("data")?.toByteVector() ?? new ByteVector(new Uint8Array(0));
+      let fileName = m.get("fileName")?.toString() ?? "";
+      let uid = Number(m.get("uid")?.toLongLong() ?? 0n);
+      const description = m.get("description")?.toString() ?? "";
+
+      if (key.toUpperCase() === "PICTURE" && !mimeType.startsWith("image/")) {
+        // Guess mime type from data
+        const pngMagic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+        const isPng = pngMagic.every((b, i) => data.get(i) === b);
+        mimeType = isPng ? "image/png" : "image/jpeg";
+      } else if (!mimeType && key.includes("/")) {
+        mimeType = key;
+      } else if (!fileName && key.includes(".")) {
+        fileName = key;
+      }
+
+      if (!uid) {
+        uid = generateAttachmentUid();
+      }
+
+      if (!fileName && mimeType) {
+        const slashPos = mimeType.lastIndexOf("/");
+        let ext = slashPos >= 0 ? mimeType.slice(slashPos + 1) : mimeType;
+        if (ext === "jpeg") ext = "jpg";
+        fileName = `attachment.${ext}`;
+      }
+
+      if (mimeType && fileName) {
+        this._tag.attachedFiles.push({ description, fileName, mediaType: mimeType, data, uid });
+      }
+    }
+
+    return true;
   }
 
   // ---------------------------------------------------------------------------
@@ -432,9 +686,11 @@ export class MatroskaFile extends File {
     // Collect positions of major elements from SeekHead
     const elementPositions = new Map<number, number>();
 
-    // First pass: scan for SeekHead and any directly-encountered major elements
-    const maxScanOffset = Math.min(segmentEnd, segmentDataOffset + 1048576); // up to 1MB
-    let lastScanPosition = segmentDataOffset;
+    // Limit initial linear scan: 512 KB for Fast mode, full segment otherwise
+    const FAST_SCAN_LIMIT = 512 * 1024;
+    const maxScanLimit = readStyle === ReadStyle.Fast ? FAST_SCAN_LIMIT : segment.dataSize;
+    const maxScanOffset = Math.min(segmentEnd, segmentDataOffset + maxScanLimit);
+    let seekHeadFound = false;
 
     while ((await this._stream.tell()) < maxScanOffset) {
       const el = await readElement(this._stream);
@@ -450,30 +706,32 @@ export class MatroskaFile extends File {
         if (maybeVoid && maybeVoid.id === EbmlId.VoidElement) {
           this._voidAfterSeekHeadEl = maybeVoid;
         }
-        await skipElement(this._stream, el);
-        lastScanPosition = await this._stream.tell();
-        continue;
+        // SeekHead found: use its entries to locate elements directly, stop linear scan
+        seekHeadFound = true;
+        break;
       }
 
-      // Process elements we encounter directly
+      // Process elements we encounter directly (no SeekHead: linear scan)
       if (el.id === EbmlId.Tags || el.id === EbmlId.Tracks ||
-          el.id === EbmlId.Info || el.id === EbmlId.Attachments) {
+          el.id === EbmlId.Info || el.id === EbmlId.Attachments ||
+          el.id === EbmlId.Chapters) {
         elementPositions.set(el.id, el.offset);
       }
 
-      lastScanPosition = await this._stream.tell();
       await skipElement(this._stream, el);
     }
 
-    // If Tags or Attachments were not found via SeekHead or before Cluster,
-    // do a forward scan from where we stopped to end-of-file.
-    if (!elementPositions.has(EbmlId.Tags) || !elementPositions.has(EbmlId.Attachments)) {
-      const scanFrom = Math.max(lastScanPosition, await this._stream.tell());
+    // If no SeekHead was found, do a fallback full-segment scan for missing elements.
+    // (When a SeekHead is present we trust its entries and do not scan further.)
+    if (!seekHeadFound &&
+        (!elementPositions.has(EbmlId.Tags) || !elementPositions.has(EbmlId.Attachments))) {
+      const scanFrom = await this._stream.tell();
       await this._stream.seek(scanFrom, Position.Beginning);
       while ((await this._stream.tell()) < segmentEnd) {
         const el = await readElement(this._stream);
         if (!el) break;
-        if (el.id === EbmlId.Tags || el.id === EbmlId.Attachments) {
+        if (el.id === EbmlId.Tags || el.id === EbmlId.Attachments ||
+            el.id === EbmlId.Chapters) {
           elementPositions.set(el.id, el.offset);
         }
         await skipElement(this._stream, el);
@@ -523,6 +781,20 @@ export class MatroskaFile extends File {
       }
     }
 
+    // Parse Chapters
+    const chaptersOffset = elementPositions.get(EbmlId.Chapters);
+    if (chaptersOffset !== undefined) {
+      await this._stream.seek(chaptersOffset, Position.Beginning);
+      const chaptersEl = await readElement(this._stream);
+      if (chaptersEl && chaptersEl.id === EbmlId.Chapters) {
+        this._chaptersEl = chaptersEl;
+        this._chapters = await MatroskaChapters.parseFromStream(this._stream, chaptersEl);
+        if (this._chapters.isEmpty()) {
+          this._chapters = null;
+        }
+      }
+    }
+
     // Set properties
     if (readProperties) {
       if (!this._properties) {
@@ -540,6 +812,19 @@ export class MatroskaFile extends File {
     // Ensure a tag object always exists (even if empty)
     if (!this._tag) {
       this._tag = new MatroskaTag();
+    }
+
+    // In Accurate mode: validate that each SeekHead entry actually points to the
+    // expected element.  Mirrors C++ SeekHead::isValid().
+    if (seekHeadFound && readStyle === ReadStyle.Accurate) {
+      for (const [id, pos] of elementPositions) {
+        await this._stream.seek(pos, Position.Beginning);
+        const [foundId] = await readElementId(this._stream);
+        if (!foundId || foundId !== id) {
+          this._valid = false;
+          return;
+        }
+      }
     }
 
     this._valid = true;

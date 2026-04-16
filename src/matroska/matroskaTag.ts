@@ -208,9 +208,49 @@ export class MatroskaTag extends Tag {
     return this._simpleTags;
   }
 
+  /**
+   * Appends a SimpleTag entry.
+   * @param tag - The SimpleTag to append.
+   */
+  addSimpleTag(tag: SimpleTag): void {
+    this._simpleTags.push(tag);
+  }
+
+  /**
+   * Inserts a SimpleTag at the given index.
+   * @param index - Position to insert at.
+   * @param tag - The SimpleTag to insert.
+   */
+  insertSimpleTag(index: number, tag: SimpleTag): void {
+    this._simpleTags.splice(index, 0, tag);
+  }
+
+  /**
+   * Removes a SimpleTag by index or by name and optional target type value.
+   * @param indexOrName - Index (number) or tag name (string) to remove.
+   * @param targetTypeValue - If removing by name, optionally match this target type.
+   */
+  removeSimpleTag(indexOrName: number | string, targetTypeValue?: TargetTypeValue): void {
+    if (typeof indexOrName === "number") {
+      this._simpleTags.splice(indexOrName, 1);
+    } else {
+      const name = indexOrName;
+      const idx = this._simpleTags.findIndex(st =>
+        st.name === name &&
+        (targetTypeValue === undefined || st.targetTypeValue === targetTypeValue),
+      );
+      if (idx >= 0) this._simpleTags.splice(idx, 1);
+    }
+  }
+
   /** All attached files stored in this tag. */
   get attachedFiles(): AttachedFile[] {
     return this._attachedFiles;
+  }
+
+  /** Replaces all attached files. */
+  set attachedFiles(value: AttachedFile[]) {
+    this._attachedFiles = value;
   }
 
   /** @param value - Segment title from the Info element. */
@@ -297,33 +337,17 @@ export class MatroskaTag extends Tag {
         keys.push(st.name);
       }
     }
-    // Add PICTURE key if there are image attachments
-    if (this._attachedFiles.some(af => af.mediaType.startsWith("image/"))) {
-      if (!keys.includes("PICTURE")) keys.push("PICTURE");
-    }
     return keys;
   }
 
   /**
    * Returns complex property values for the given key.
-   * @param key - The complex property key (e.g. `"PICTURE"`).
+   * Only handles complex simple tags (binary, trackUid, etc.).
+   * PICTURE and other attachment-keyed properties are handled at the file level.
+   * @param key - The complex property key.
    * @returns An array of variant maps, one per value.
    */
   override complexProperties(key: string): VariantMap[] {
-    if (key.toUpperCase() === "PICTURE") {
-      return this._attachedFiles
-        .filter(af => af.mediaType.startsWith("image/"))
-        .map(af => {
-          const m: VariantMap = new Map();
-          m.set("data", Variant.fromByteVector(af.data));
-          m.set("mimeType", Variant.fromString(af.mediaType));
-          m.set("description", Variant.fromString(af.description));
-          m.set("fileName", Variant.fromString(af.fileName));
-          m.set("uid", Variant.fromULongLong(BigInt(af.uid)));
-          return m;
-        });
-    }
-
     // Return complex simple tags
     const results: VariantMap[] = [];
     for (const st of this._simpleTags) {
@@ -351,6 +375,78 @@ export class MatroskaTag extends Tag {
       }
     }
     return results;
+  }
+
+  /**
+   * Set or replace complex property values for the given key.
+   * Handles non-PICTURE complex simple tags (e.g. DURATION with trackUid,
+   * binary tags, tags with non-standard targetTypeValue).
+   * Returns `false` for `"PICTURE"` — handled at the file level.
+   * @param key - The property key.
+   * @param value - Array of variant maps to set.
+   * @returns `true` if the key was handled here, `false` otherwise.
+   */
+  override setComplexProperties(key: string, value: VariantMap[]): boolean {
+    if (key.toUpperCase() === "PICTURE") {
+      return false;
+    }
+
+    // Remove existing complex simple tags with this name
+    const before = this._simpleTags.length;
+    this._simpleTags = this._simpleTags.filter(st =>
+      !(st.name === key &&
+        (st.binaryValue !== undefined || st.trackUid !== 0 || st.editionUid !== 0 ||
+         st.chapterUid !== 0 || st.attachmentUid !== 0 ||
+         !translateTag(st.name, st.targetTypeValue))),
+    );
+    const removed = this._simpleTags.length < before;
+
+    let added = false;
+    for (const m of value) {
+      const name = m.get("name")?.toString() ?? "";
+      if (name !== key) continue;
+      const hasData = m.has("data");
+      const hasValue = m.has("value");
+      if (!hasData && !hasValue) continue;
+
+      const targetTypeValue = (m.get("targetTypeValue")?.toInt() ?? 0) as TargetTypeValue;
+      const language = m.get("language")?.toString() ?? "und";
+      const defaultLanguageFlag = m.get("defaultLanguage")?.toBool() ?? true;
+      const trackUid = Number(m.get("trackUid")?.toLongLong() ?? 0n);
+      const editionUid = Number(m.get("editionUid")?.toLongLong() ?? 0n);
+      const chapterUid = Number(m.get("chapterUid")?.toLongLong() ?? 0n);
+      const attachmentUid = Number(m.get("attachmentUid")?.toLongLong() ?? 0n);
+
+      if (hasData) {
+        this._simpleTags.push({
+          name: key,
+          value: "",
+          binaryValue: m.get("data")!.toByteVector(),
+          language,
+          defaultLanguageFlag,
+          targetTypeValue,
+          trackUid,
+          editionUid,
+          chapterUid,
+          attachmentUid,
+        });
+      } else {
+        this._simpleTags.push({
+          name: key,
+          value: m.get("value")!.toString(),
+          language,
+          defaultLanguageFlag,
+          targetTypeValue,
+          trackUid,
+          editionUid,
+          chapterUid,
+          attachmentUid,
+        });
+      }
+      added = true;
+    }
+
+    return removed || added;
   }
 
   // ---------------------------------------------------------------------------
@@ -697,8 +793,6 @@ export class MatroskaTag extends Tag {
       }
     }
 
-    if (fileName || mediaType) {
-      this._attachedFiles.push({ description, fileName, mediaType, data, uid });
-    }
+    this._attachedFiles.push({ description, fileName, mediaType, data, uid });
   }
 }

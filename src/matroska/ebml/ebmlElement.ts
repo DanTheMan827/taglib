@@ -51,6 +51,19 @@ export enum EbmlId {
   AttachedFileUID = 0x46AE,
   Cluster = 0x1F43B675,
   Cues = 0x1C53BB6B,
+  Chapters = 0x1043A770,
+  EditionEntry = 0x45B9,
+  EditionUID = 0x45BC,
+  EditionFlagDefault = 0x45DB,
+  EditionFlagOrdered = 0x45DD,
+  ChapterAtom = 0xB6,
+  ChapterUID = 0x73C4,
+  ChapterTimeStart = 0x91,
+  ChapterTimeEnd = 0x92,
+  ChapterFlagHidden = 0x98,
+  ChapterDisplay = 0x80,
+  ChapString = 0x85,
+  ChapLanguage = 0x437C,
 };
 
 /**
