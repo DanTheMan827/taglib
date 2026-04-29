@@ -65,6 +65,10 @@ export { Mp4File } from "./mp4/mp4File.js";
 export { Mp4Tag, Mp4Item, Mp4CoverArt, Mp4CoverArtFormat, Mp4ItemType } from "./mp4/mp4Tag.js";
 export { Mp4Properties } from "./mp4/mp4Properties.js";
 export { Mp4Atoms, Mp4Atom } from "./mp4/mp4Atoms.js";
+export type { Mp4Chapter } from "./mp4/mp4Chapter.js";
+export { Mp4ChapterHolder, chaptersEqual } from "./mp4/mp4Chapter.js";
+export { NeroChapters } from "./mp4/mp4NeroChapters.js";
+export { QtChapters } from "./mp4/mp4QtChapters.js";
 
 // OGG
 export { OggVorbisFile } from "./ogg/vorbis/vorbisFile.js";

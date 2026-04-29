@@ -8,6 +8,9 @@ import type { VariantMap } from "../toolkit/variant.js";
 import { Mp4Atoms } from "./mp4Atoms.js";
 import { Mp4Tag } from "./mp4Tag.js";
 import { Mp4Properties } from "./mp4Properties.js";
+import { NeroChapters } from "./mp4NeroChapters.js";
+import { QtChapters } from "./mp4QtChapters.js";
+import type { Mp4Chapter } from "./mp4Chapter.js";
 
 // ---------------------------------------------------------------------------
 // Mp4File
@@ -17,6 +20,10 @@ export class Mp4File extends File {
   private _atoms: Mp4Atoms | null = null;
   private _tag: Mp4Tag | null = null;
   private _properties: Mp4Properties | null = null;
+  /** @internal Lazily-created Nero chapter holder. */
+  private _neroChapters: NeroChapters | null = null;
+  /** @internal Lazily-created QuickTime chapter holder. */
+  private _qtChapters: QtChapters | null = null;
 
   private constructor(stream: IOStream) {
     super(stream);
@@ -47,7 +54,16 @@ export class Mp4File extends File {
   async save(): Promise<boolean> {
     if (this.readOnly) return false;
     if (!this.isValid) return false;
-    return (await this._tag?.save()) ?? false;
+
+    const tagOk = (await this._tag?.save()) ?? false;
+    const neroOk = this._neroChapters
+      ? await this._neroChapters.saveIfModified(this._stream)
+      : true;
+    const qtOk = this._qtChapters
+      ? await this._qtChapters.saveIfModified(this._stream)
+      : true;
+
+    return tagOk && neroOk && qtOk;
   }
 
   // -- Convenience --
@@ -63,6 +79,65 @@ export class Mp4File extends File {
       ByteVector.fromString("ftyp", StringType.Latin1),
       4,
     );
+  }
+
+  // -- Nero chapters --
+
+  /**
+   * Returns the Nero-style chapter list (`chpl` atom at `moov/udta/chpl`).
+   *
+   * Chapters are read from disk lazily on the first call.
+   *
+   * @returns Array of chapters with `title` and `startTime` (in ms).
+   */
+  async neroChapters(): Promise<Mp4Chapter[]> {
+    if (!this._neroChapters) {
+      this._neroChapters = new NeroChapters();
+    }
+    return await this._neroChapters.getChapters(this._stream);
+  }
+
+  /**
+   * Sets the Nero-style chapters.  Changes are written to disk on the next
+   * {@link save} call.  Pass an empty array to remove the `chpl` atom.
+   *
+   * @param chapters - Replacement chapter list (start times in ms).
+   */
+  setNeroChapters(chapters: Mp4Chapter[]): void {
+    if (!this._neroChapters) {
+      this._neroChapters = new NeroChapters();
+    }
+    this._neroChapters.setChapters(chapters);
+  }
+
+  // -- QuickTime chapters --
+
+  /**
+   * Returns the QuickTime-style chapter list (text track referenced by
+   * `tref/chap` in the audio track).
+   *
+   * Chapters are read from disk lazily on the first call.
+   *
+   * @returns Array of chapters with `title` and `startTime` (in ms).
+   */
+  async qtChapters(): Promise<Mp4Chapter[]> {
+    if (!this._qtChapters) {
+      this._qtChapters = new QtChapters();
+    }
+    return await this._qtChapters.getChapters(this._stream);
+  }
+
+  /**
+   * Sets the QuickTime-style chapters.  Changes are written to disk on the
+   * next {@link save} call.  Pass an empty array to remove the chapter track.
+   *
+   * @param chapters - Replacement chapter list (start times in ms).
+   */
+  setQtChapters(chapters: Mp4Chapter[]): void {
+    if (!this._qtChapters) {
+      this._qtChapters = new QtChapters();
+    }
+    this._qtChapters.setChapters(chapters);
   }
 
   // -- PropertyMap delegation --
@@ -114,3 +189,4 @@ export class Mp4File extends File {
     }
   }
 }
+
