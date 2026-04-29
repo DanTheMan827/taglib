@@ -1,4 +1,7 @@
 /** @packageDocumentation MP4 chapter types shared by Nero and QuickTime chapter implementations. */
+import type { IOStream } from "../toolkit/ioStream.js";
+
+type _IOStream = IOStream; // used by abstract methods to satisfy typedoc.
 
 /**
  * A single chapter marker for an MP4 file.
@@ -50,8 +53,7 @@ export abstract class Mp4ChapterHolder {
    * @param stream - The file stream to read from (used only on first call).
    * @returns The chapter list.
    */
-
-  abstract getChapters(stream: any): Promise<Mp4Chapter[]>;
+  abstract getChapters(stream: _IOStream): Promise<Mp4Chapter[]>;
 
   /**
    * Reads chapters from disk into `_chapters`.
@@ -59,8 +61,7 @@ export abstract class Mp4ChapterHolder {
    * @param stream - The file stream.
    * @returns `true` if chapters were found on disk.
    */
-
-  abstract read(stream: any): Promise<boolean>;
+  abstract read(stream: _IOStream): Promise<boolean>;
 
   /**
    * Writes `_chapters` to disk.
@@ -68,8 +69,7 @@ export abstract class Mp4ChapterHolder {
    * @param stream - The file stream.
    * @returns `true` on success.
    */
-
-  abstract write(stream: any): Promise<boolean>;
+  abstract write(stream: _IOStream): Promise<boolean>;
 
   /**
    * Returns `true` if the in-memory chapter list has been modified.
@@ -119,7 +119,7 @@ export abstract class Mp4ChapterHolder {
    * @param stream - The file stream.
    * @returns `true` if successful (or if no write was needed).
    */
-  async saveIfModified(stream: Parameters<typeof this.write>[0]): Promise<boolean> {
+  async saveIfModified(stream: _IOStream): Promise<boolean> {
     if (this._modified) {
       if (await this.write(stream)) {
         this._modified = false;

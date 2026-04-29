@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { Mp4File } from "../mp4/mp4File.js";
-import { NeroChapters } from "../mp4/mp4NeroChapters.js";
-import { QtChapters } from "../mp4/mp4QtChapters.js";
 import type { Mp4Chapter } from "../mp4/mp4Chapter.js";
 import { Mp4ChapterHolder, chaptersEqual } from "../mp4/mp4Chapter.js";
+import type { IOStream } from "../toolkit/ioStream.js";
 import { ByteVectorStream } from "../toolkit/byteVectorStream.js";
 import { ReadStyle } from "../toolkit/types.js";
 import { openTestStream, readTestData } from "./testHelper.js";
+
+/** Casts `null` to `IOStream` for use in mock holders that never touch the stream. */
+const NULL_STREAM = null as unknown as IOStream;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -849,22 +851,22 @@ describe("MP4", () => {
       readCount = 0;
       writeCount = 0;
 
-      override async getChapters(): Promise<Mp4Chapter[]> {
+      override async getChapters(_stream: IOStream): Promise<Mp4Chapter[]> {
         if (!this._loaded) {
-          await this.read(null);
+          await this.read(_stream);
           this._loaded = true;
           this._modified = false;
         }
         return this._chapters;
       }
 
-      override async read(_stream: unknown): Promise<boolean> {
+      override async read(_stream: IOStream): Promise<boolean> {
         this.readCount++;
         this._chapters = [...mockChapters];
         return true;
       }
 
-      override async write(_stream: unknown): Promise<boolean> {
+      override async write(_stream: IOStream): Promise<boolean> {
         this.writeCount++;
         return true;
       }
@@ -873,7 +875,7 @@ describe("MP4", () => {
     // No reads or writes if chapters are not used (saveIfModified called without prior access)
     {
       const holder = new MockHolder();
-      await holder.saveIfModified(null);
+      await holder.saveIfModified(NULL_STREAM);
       expect(holder.readCount).toBe(0);
       expect(holder.writeCount).toBe(0);
     }
@@ -881,22 +883,22 @@ describe("MP4", () => {
     // Do not read if already read, do not write if not modified
     {
       const holder = new MockHolder();
-      const chapters = await holder.getChapters();
+      const chapters = await holder.getChapters(NULL_STREAM);
       expect(chaptersEqual(chapters, mockChapters)).toBe(true);
       expect(holder.readCount).toBe(1);
-      await holder.getChapters(); // second access must not re-read
+      await holder.getChapters(NULL_STREAM); // second access must not re-read
       expect(holder.readCount).toBe(1);
-      await holder.saveIfModified(null); // not modified – no write
+      await holder.saveIfModified(NULL_STREAM); // not modified – no write
       expect(holder.writeCount).toBe(0);
     }
 
     // setChapters with same value after read → no write
     {
       const holder = new MockHolder();
-      await holder.getChapters();
+      await holder.getChapters(NULL_STREAM);
       expect(holder.readCount).toBe(1);
       holder.setChapters(mockChapters); // same chapters
-      await holder.saveIfModified(null);
+      await holder.saveIfModified(NULL_STREAM);
       expect(holder.writeCount).toBe(0);
     }
 
@@ -904,7 +906,7 @@ describe("MP4", () => {
     {
       const holder = new MockHolder();
       holder.setChapters([]);
-      await holder.saveIfModified(null);
+      await holder.saveIfModified(NULL_STREAM);
       expect(holder.readCount).toBe(0);
       expect(holder.writeCount).toBe(1);
     }
@@ -912,19 +914,19 @@ describe("MP4", () => {
     // Write if modified
     {
       const holder = new MockHolder();
-      expect(chaptersEqual(await holder.getChapters(), mockChapters)).toBe(true);
+      expect(chaptersEqual(await holder.getChapters(NULL_STREAM), mockChapters)).toBe(true);
       expect(holder.readCount).toBe(1);
 
       const chapters1: Mp4Chapter[] = [{ title: "Chapter 1", startTime: 0 }];
       holder.setChapters(chapters1);
-      expect(chaptersEqual(await holder.getChapters(), chapters1)).toBe(true);
-      await holder.saveIfModified(null);
-      expect(chaptersEqual(await holder.getChapters(), chapters1)).toBe(true);
+      expect(chaptersEqual(await holder.getChapters(NULL_STREAM), chapters1)).toBe(true);
+      await holder.saveIfModified(NULL_STREAM);
+      expect(chaptersEqual(await holder.getChapters(NULL_STREAM), chapters1)).toBe(true);
       expect(holder.writeCount).toBe(1);
 
       // Setting same chapters again = no write
       holder.setChapters(chapters1);
-      await holder.saveIfModified(null);
+      await holder.saveIfModified(NULL_STREAM);
       expect(holder.writeCount).toBe(1);
 
       const chapters2: Mp4Chapter[] = [
@@ -932,8 +934,8 @@ describe("MP4", () => {
         { title: "Chapter 2", startTime: 2 },
       ];
       holder.setChapters(chapters2);
-      expect(chaptersEqual(await holder.getChapters(), chapters2)).toBe(true);
-      await holder.saveIfModified(null);
+      expect(chaptersEqual(await holder.getChapters(NULL_STREAM), chapters2)).toBe(true);
+      await holder.saveIfModified(NULL_STREAM);
       expect(holder.writeCount).toBe(2);
 
       const chapters2b: Mp4Chapter[] = [
@@ -941,12 +943,12 @@ describe("MP4", () => {
         { title: "Chapter 2", startTime: 2 },
       ];
       holder.setChapters(chapters2b);
-      await holder.saveIfModified(null);
+      await holder.saveIfModified(NULL_STREAM);
       expect(holder.writeCount).toBe(2); // still 2 – no change
 
       holder.setChapters([]);
-      expect((await holder.getChapters()).length).toBe(0);
-      await holder.saveIfModified(null);
+      expect((await holder.getChapters(NULL_STREAM)).length).toBe(0);
+      await holder.saveIfModified(NULL_STREAM);
       expect(holder.writeCount).toBe(3);
     }
   });
