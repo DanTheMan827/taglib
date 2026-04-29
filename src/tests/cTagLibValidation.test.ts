@@ -36,10 +36,23 @@ import {
 import { tmpdir } from "os";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { ByteVector } from "../byteVector.js";
-import { FileRef } from "../fileRef.js";
+import { ByteVector, StringType } from "../byteVector.js";
+import { DsdiffFile } from "../dsdiff/dsdiffFile.js";
+import { DsfFile } from "../dsf/dsfFile.js";
+import { MatroskaFile } from "../matroska/matroskaFile.js";
+import { Mp4File } from "../mp4/mp4File.js";
+import { ChapterFrame } from "../mpeg/id3v2/frames/chapterFrame.js";
+import { TableOfContentsFrame } from "../mpeg/id3v2/frames/tableOfContentsFrame.js";
+import { TextIdentificationFrame } from "../mpeg/id3v2/frames/textIdentificationFrame.js";
+import { Id3v2Tag } from "../mpeg/id3v2/id3v2Tag.js";
+import { MpegFile } from "../mpeg/mpegFile.js";
+import { AiffFile } from "../riff/aiff/aiffFile.js";
+import { WavFile } from "../riff/wav/wavFile.js";
+import { PropertyMap } from "../toolkit/propertyMap.js";
 import { ByteVectorStream } from "../toolkit/byteVectorStream.js";
 import { Variant, type VariantMap } from "../toolkit/variant.js";
+import { TrueAudioFile } from "../trueaudio/trueAudioFile.js";
+import { FileRef } from "../fileRef.js";
 import { readTestData } from "./testHelper.js";
 
 // ---------------------------------------------------------------------------
