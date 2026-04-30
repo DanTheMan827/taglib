@@ -229,14 +229,20 @@ const APE_TO_PROPERTY: ReadonlyMap<string, string> = new Map([
   ["TRACK", "TRACKNUMBER"],
   ["TRACKNUMBER", "TRACKNUMBER"],
   ["ALBUMARTIST", "ALBUMARTIST"],
+  // C++ TagLib writes ALBUMARTIST as "ALBUM ARTIST" via setProperties(); accept both spellings.
+  ["ALBUM ARTIST", "ALBUMARTIST"],
   ["DISCNUMBER", "DISCNUMBER"],
+  // C++ TagLib writes DISCNUMBER as "DISC" via setProperties(); accept both spellings.
+  ["DISC", "DISCNUMBER"],
   ["COMPOSER", "COMPOSER"],
   ["SUBTITLE", "SUBTITLE"],
   ["ISRC", "ISRC"],
   ["LABEL", "LABEL"],
   ["CONDUCTOR", "CONDUCTOR"],
   ["LYRICS", "LYRICS"],
+  // C++ TagLib writes REMIXER as "MIXARTIST" via setProperties(); accept both spellings.
   ["REMIXER", "REMIXER"],
+  ["MIXARTIST", "REMIXER"],
   ["COMPILATION", "COMPILATION"],
   ["COPYRIGHT", "COPYRIGHT"],
   ["ENCODER", "ENCODER"],

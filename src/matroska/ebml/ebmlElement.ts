@@ -350,12 +350,14 @@ export function renderUintElement(id: number, value: number): ByteVector {
   }
   let numBytes = 1;
   let v = value;
-  while (v > 0xFF) { numBytes++; v >>>= 8; }
+  // Use Math.floor(v / 256) instead of v >>>= 8 to avoid 32-bit truncation
+  // for values larger than 2^32 (e.g. Matroska chapter times in nanoseconds).
+  while (v > 0xFF) { numBytes++; v = Math.floor(v / 256); }
   const bytes = new Uint8Array(numBytes);
   v = value;
   for (let i = numBytes - 1; i >= 0; i--) {
-    bytes[i] = v & 0xFF;
-    v >>>= 8;
+    bytes[i] = v % 256;
+    v = Math.floor(v / 256);
   }
   return renderEbmlElement(id, new ByteVector(bytes));
 }

@@ -256,12 +256,11 @@ export class MatroskaChapters {
     if (edition.uid) {
       parts.push(renderUintElement(EbmlId.EditionUID, edition.uid));
     }
-    if (edition.isDefault) {
-      parts.push(renderUintElement(EbmlId.EditionFlagDefault, 1));
-    }
-    if (edition.isOrdered) {
-      parts.push(renderUintElement(EbmlId.EditionFlagOrdered, 1));
-    }
+    // Always write EditionFlagDefault and EditionFlagOrdered (even when 0) to
+    // match C++ TagLib's matroskachapters.cpp renderInternal() which always
+    // appends these elements regardless of their value.
+    parts.push(renderUintElement(EbmlId.EditionFlagDefault, edition.isDefault ? 1 : 0));
+    parts.push(renderUintElement(EbmlId.EditionFlagOrdered, edition.isOrdered ? 1 : 0));
     for (const chapter of edition.chapters) {
       parts.push(MatroskaChapters.renderChapter(chapter));
     }
@@ -277,12 +276,12 @@ export class MatroskaChapters {
       parts.push(renderUintElement(EbmlId.ChapterUID, chapter.uid));
     }
     parts.push(renderUintElement(EbmlId.ChapterTimeStart, chapter.timeStart));
-    if (chapter.timeEnd) {
+    if (chapter.timeEnd !== undefined) {
       parts.push(renderUintElement(EbmlId.ChapterTimeEnd, chapter.timeEnd));
     }
-    if (chapter.isHidden) {
-      parts.push(renderUintElement(EbmlId.ChapterFlagHidden, 1));
-    }
+    // Always write ChapterFlagHidden (even when 0) to match C++ TagLib's
+    // matroskachapters.cpp renderInternal() which always appends this element.
+    parts.push(renderUintElement(EbmlId.ChapterFlagHidden, chapter.isHidden ? 1 : 0));
     for (const display of chapter.displays) {
       parts.push(MatroskaChapters.renderDisplay(display));
     }
