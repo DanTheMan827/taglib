@@ -393,10 +393,13 @@ export class XiphComment extends Tag {
   override setProperties(props: PropertyMap): PropertyMap {
     const unsupported = new PropertyMap();
 
-    // Remove fields that are being set
-    for (const key of props.keys()) {
+    // Remove all existing text fields that are NOT in the provided PropertyMap,
+    // matching C++ XiphComment::setProperties() which removes non-included keys.
+    for (const key of [...this._fields.keys()]) {
       if (key === "METADATA_BLOCK_PICTURE") continue;
-      this._fields.delete(key);
+      if (!props.contains(key)) {
+        this._fields.delete(key);
+      }
     }
 
     for (const [key, values] of props.entries()) {

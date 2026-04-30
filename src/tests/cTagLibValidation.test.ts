@@ -241,24 +241,25 @@ async function expectTSReadsOK(
 // Extended-tag and chapter helpers
 // ---------------------------------------------------------------------------
 
-/** Apply basic TAG fields directly to an ID3v2 tag instance. */
-function applyBasicTagsToId3(id3: Id3v2Tag): void {
-  id3.title   = TAG.title;
-  id3.artist  = TAG.artist;
-  id3.album   = TAG.album;
-  id3.comment = TAG.comment;
-  id3.genre   = TAG.genre;
-  id3.year    = TAG.year;
-  id3.track   = TAG.track;
-}
-
-/** Apply EXT fields to an ID3v2 tag instance via PropertyMap (ALBUMARTIST/COMPOSER/DISCNUMBER). */
-function applyExtTagsToId3(id3: Id3v2Tag): void {
-  const extProps = new PropertyMap();
-  extProps.replace("ALBUMARTIST", [EXT.albumArtist]);
-  extProps.replace("COMPOSER",   [EXT.composer]);
-  extProps.replace("DISCNUMBER", [EXT.discNumber]);
-  id3.setProperties(extProps);
+/**
+ * Apply ALL 10 tags (basic 7 + extended 3) to an ID3v2 tag instance via a
+ * single setProperties() call with keys in strict alphabetical order.
+ * This matches C++ applyAllTagsViaProps() which calls ID3v2Tag::setProperties()
+ * with a sorted PropertyMap, producing frames in alphabetical property-key order.
+ */
+function applyAllTagsToId3(id3: Id3v2Tag): void {
+  const all = new PropertyMap();
+  all.replace("ALBUM",       [TAG.album]);
+  all.replace("ALBUMARTIST", [EXT.albumArtist]);
+  all.replace("ARTIST",      [TAG.artist]);
+  all.replace("COMMENT",     [TAG.comment]);
+  all.replace("COMPOSER",    [EXT.composer]);
+  all.replace("DATE",        [String(TAG.year)]);
+  all.replace("DISCNUMBER",  [EXT.discNumber]);
+  all.replace("GENRE",       [TAG.genre]);
+  all.replace("TITLE",       [TAG.title]);
+  all.replace("TRACKNUMBER", [String(TAG.track)]);
+  id3.setProperties(all);
 }
 
 /** Add the CTOC frame + two CHAP frames matching tag_with_c_full.cpp addID3v2Chapters(). */
@@ -288,9 +289,9 @@ function addId3v2ChapterFrames(id3: Id3v2Tag): void {
 }
 
 /**
- * Tag a file with basic + extended tags (for non-Matroska formats).
- * Extended tags are applied via a PropertyMap after the basic setters so that
- * the existing basic frames are preserved.
+ * Tag a file with all 10 tags (basic 7 + extended 3) via a single
+ * setProperties() call with keys in strict alphabetical order.
+ * This matches C++ applyAllTagsViaProps(), ensuring byte-identical output.
  */
 async function tagWithTSExt(
   testFile: string,
@@ -301,20 +302,20 @@ async function tagWithTSExt(
   const ref  = await FileRef.fromByteArray(new Uint8Array(data), "test" + ext);
   expect(ref.isNull).toBe(false);
 
-  const tag = ref.tag()!;
-  tag.title   = TAG.title;
-  tag.artist  = TAG.artist;
-  tag.album   = TAG.album;
-  tag.comment = TAG.comment;
-  tag.genre   = TAG.genre;
-  tag.year    = TAG.year;
-  tag.track   = TAG.track;
-
-  const extProps = new PropertyMap();
-  extProps.replace("ALBUMARTIST", [EXT.albumArtist]);
-  extProps.replace("COMPOSER",   [EXT.composer]);
-  extProps.replace("DISCNUMBER", [EXT.discNumber]);
-  ref.setProperties(extProps);
+  // All keys in alphabetical order to match C++ applyAllTagsViaProps() /
+  // std::map iteration order, producing byte-identical tag field ordering.
+  const props = new PropertyMap();
+  props.replace("ALBUM",       [TAG.album]);
+  props.replace("ALBUMARTIST", [EXT.albumArtist]);
+  props.replace("ARTIST",      [TAG.artist]);
+  props.replace("COMMENT",     [TAG.comment]);
+  props.replace("COMPOSER",    [EXT.composer]);
+  props.replace("DATE",        [String(TAG.year)]);
+  props.replace("DISCNUMBER",  [EXT.discNumber]);
+  props.replace("GENRE",       [TAG.genre]);
+  props.replace("TITLE",       [TAG.title]);
+  props.replace("TRACKNUMBER", [String(TAG.track)]);
+  ref.setProperties(props);
 
   if (opts.picture) {
     ref.setComplexProperties("PICTURE", [makePictureMap(makeTestJPEG())]);
@@ -363,8 +364,7 @@ async function tagWithTSChapMp3(): Promise<Uint8Array> {
   const stream = new ByteVectorStream(readTestData("xing.mp3"));
   const f      = await MpegFile.open(stream);
   const id3    = f.id3v2Tag(true)!;
-  applyBasicTagsToId3(id3);
-  applyExtTagsToId3(id3);
+  applyAllTagsToId3(id3);
   addId3v2ChapterFrames(id3);
   id3.setComplexProperties("PICTURE", [makePictureMap(makeTestJPEG())]);
   await f.save();
@@ -375,8 +375,7 @@ async function tagWithTSChapWav(): Promise<Uint8Array> {
   const stream = new ByteVectorStream(readTestData("empty.wav"));
   const f      = await WavFile.open(stream);
   const id3    = f.id3v2Tag!;
-  applyBasicTagsToId3(id3);
-  applyExtTagsToId3(id3);
+  applyAllTagsToId3(id3);
   addId3v2ChapterFrames(id3);
   id3.setComplexProperties("PICTURE", [makePictureMap(makeTestJPEG())]);
   await f.save();
@@ -387,8 +386,7 @@ async function tagWithTSChapAiff(): Promise<Uint8Array> {
   const stream = new ByteVectorStream(readTestData("empty.aiff"));
   const f      = await AiffFile.open(stream);
   const id3    = f.id3v2Tag!;
-  applyBasicTagsToId3(id3);
-  applyExtTagsToId3(id3);
+  applyAllTagsToId3(id3);
   addId3v2ChapterFrames(id3);
   id3.setComplexProperties("PICTURE", [makePictureMap(makeTestJPEG())]);
   await f.save();
@@ -399,8 +397,7 @@ async function tagWithTSChapTta(): Promise<Uint8Array> {
   const stream = new ByteVectorStream(readTestData("empty.tta"));
   const f      = await TrueAudioFile.open(stream);
   const id3    = f.id3v2Tag(true)!;
-  applyBasicTagsToId3(id3);
-  applyExtTagsToId3(id3);
+  applyAllTagsToId3(id3);
   addId3v2ChapterFrames(id3);
   id3.setComplexProperties("PICTURE", [makePictureMap(makeTestJPEG())]);
   await f.save();
@@ -411,8 +408,7 @@ async function tagWithTSChapDsf(): Promise<Uint8Array> {
   const stream = new ByteVectorStream(readTestData("empty10ms.dsf"));
   const f      = await DsfFile.open(stream);
   const id3    = f.tag() as Id3v2Tag;
-  applyBasicTagsToId3(id3);
-  applyExtTagsToId3(id3);
+  applyAllTagsToId3(id3);
   addId3v2ChapterFrames(id3);
   id3.setComplexProperties("PICTURE", [makePictureMap(makeTestJPEG())]);
   await f.save();
@@ -423,8 +419,7 @@ async function tagWithTSChapDsdiff(): Promise<Uint8Array> {
   const stream = new ByteVectorStream(readTestData("empty10ms.dff"));
   const f      = await DsdiffFile.open(stream);
   const id3    = f.id3v2Tag(true)!;
-  applyBasicTagsToId3(id3);
-  applyExtTagsToId3(id3);
+  applyAllTagsToId3(id3);
   addId3v2ChapterFrames(id3);
   id3.setComplexProperties("PICTURE", [makePictureMap(makeTestJPEG())]);
   await f.save();
@@ -439,14 +434,19 @@ async function tagWithTSChapMp4Nero(): Promise<Uint8Array> {
   const data = readTestData("no-tags.m4a");
   const ref  = await FileRef.fromByteArray(new Uint8Array(data), "test.m4a");
   expect(ref.isNull).toBe(false);
-  const tag = ref.tag()!;
-  tag.title = TAG.title; tag.artist = TAG.artist; tag.album = TAG.album;
-  tag.comment = TAG.comment; tag.genre = TAG.genre; tag.year = TAG.year; tag.track = TAG.track;
-  const extProps = new PropertyMap();
-  extProps.replace("ALBUMARTIST", [EXT.albumArtist]);
-  extProps.replace("COMPOSER",   [EXT.composer]);
-  extProps.replace("DISCNUMBER", [EXT.discNumber]);
-  ref.setProperties(extProps);
+  // All keys in alphabetical order to match C++ applyAllTagsViaProps() / std::map ordering.
+  const props = new PropertyMap();
+  props.replace("ALBUM",       [TAG.album]);
+  props.replace("ALBUMARTIST", [EXT.albumArtist]);
+  props.replace("ARTIST",      [TAG.artist]);
+  props.replace("COMMENT",     [TAG.comment]);
+  props.replace("COMPOSER",    [EXT.composer]);
+  props.replace("DATE",        [String(TAG.year)]);
+  props.replace("DISCNUMBER",  [EXT.discNumber]);
+  props.replace("GENRE",       [TAG.genre]);
+  props.replace("TITLE",       [TAG.title]);
+  props.replace("TRACKNUMBER", [String(TAG.track)]);
+  ref.setProperties(props);
   ref.setComplexProperties("PICTURE", [makePictureMap(makeTestJPEG())]);
   (ref.file() as Mp4File).setNeroChapters([
     { title: CHAP1.title, startTime: CHAP1.startTime },
@@ -460,14 +460,19 @@ async function tagWithTSChapMp4Qt(): Promise<Uint8Array> {
   const data = readTestData("no-tags.m4a");
   const ref  = await FileRef.fromByteArray(new Uint8Array(data), "test.m4a");
   expect(ref.isNull).toBe(false);
-  const tag = ref.tag()!;
-  tag.title = TAG.title; tag.artist = TAG.artist; tag.album = TAG.album;
-  tag.comment = TAG.comment; tag.genre = TAG.genre; tag.year = TAG.year; tag.track = TAG.track;
-  const extProps = new PropertyMap();
-  extProps.replace("ALBUMARTIST", [EXT.albumArtist]);
-  extProps.replace("COMPOSER",   [EXT.composer]);
-  extProps.replace("DISCNUMBER", [EXT.discNumber]);
-  ref.setProperties(extProps);
+  // All keys in alphabetical order to match C++ applyAllTagsViaProps() / std::map ordering.
+  const props = new PropertyMap();
+  props.replace("ALBUM",       [TAG.album]);
+  props.replace("ALBUMARTIST", [EXT.albumArtist]);
+  props.replace("ARTIST",      [TAG.artist]);
+  props.replace("COMMENT",     [TAG.comment]);
+  props.replace("COMPOSER",    [EXT.composer]);
+  props.replace("DATE",        [String(TAG.year)]);
+  props.replace("DISCNUMBER",  [EXT.discNumber]);
+  props.replace("GENRE",       [TAG.genre]);
+  props.replace("TITLE",       [TAG.title]);
+  props.replace("TRACKNUMBER", [String(TAG.track)]);
+  ref.setProperties(props);
   ref.setComplexProperties("PICTURE", [makePictureMap(makeTestJPEG())]);
   (ref.file() as Mp4File).setQtChapters([
     { title: CHAP1.title, startTime: CHAP1.startTime },

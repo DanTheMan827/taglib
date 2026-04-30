@@ -203,14 +203,16 @@ static void applyExtendedAPETags(TagLib::APE::Tag *apeTag) {
 }
 
 /**
- * Apply ALL tags (basic 7 + extended 3) to a Matroska file via a single
- * setProperties() call.  This is required because Matroska::Tag::setProperties()
- * is destructive: it removes all translatable simple-tags before writing.
+ * Apply ALL tags (basic 7 + extended 3) to any tag via a single setProperties()
+ * call.  Keys are inserted in alphabetical order so that tag types backed by
+ * std::map (e.g. ID3v2, XiphComment, MP4, ASF) render properties in the same
+ * sorted order in both C++ and TypeScript, ensuring byte-identical output.
+ *
+ * Do NOT use this for APEv2 tags (MPC, WavPack, APE): those use the additive
+ * applyBasicTags + applyExtendedAPETags helpers instead.
  */
-static void applyAllTagsMatroska(TagLib::Tag *tag) {
+static void applyAllTagsViaProps(TagLib::Tag *tag) {
   TagLib::PropertyMap all;
-  // Insert in alphabetical order so Matroska renders groups in the same order
-  // as C++ std::map, ensuring byte-identical output.
   all["ALBUM"].append(TagLib::String(ALBUM, TagLib::String::UTF8));
   all["ALBUMARTIST"].append(TagLib::String(ALBUMARTIST, TagLib::String::UTF8));
   all["ARTIST"].append(TagLib::String(ARTIST, TagLib::String::UTF8));
@@ -222,6 +224,14 @@ static void applyAllTagsMatroska(TagLib::Tag *tag) {
   all["TITLE"].append(TagLib::String(TITLE, TagLib::String::UTF8));
   all["TRACKNUMBER"].append(TagLib::String(std::to_string(TRACK)));
   tag->setProperties(all);
+}
+
+/**
+ * Apply ALL tags to a Matroska file.  Delegates to applyAllTagsViaProps()
+ * since Matroska::Tag::setProperties() is also destructive.
+ */
+static void applyAllTagsMatroska(TagLib::Tag *tag) {
+  applyAllTagsViaProps(tag);
 }
 
 // ---------------------------------------------------------------------------
@@ -454,8 +464,7 @@ static bool tagMatroska(const std::string &path) {
 static bool tagMP3Ext(const std::string &path) {
   TagLib::MPEG::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.ID3v2Tag(true));
-  applyExtendedTagsViaProps(f.ID3v2Tag(true));
+  applyAllTagsViaProps(f.ID3v2Tag(true));
   f.ID3v2Tag(true)->addFrame(makeAPICFrame());
   return f.save(TagLib::MPEG::File::ID3v2, TagLib::File::StripOthers,
                 TagLib::ID3v2::v4);
@@ -464,8 +473,7 @@ static bool tagMP3Ext(const std::string &path) {
 static bool tagFLACExt(const std::string &path) {
   TagLib::FLAC::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.xiphComment(true));
   f.removePictures();
   f.addPicture(makeFLACPicture());
   return f.save();
@@ -474,8 +482,7 @@ static bool tagFLACExt(const std::string &path) {
 static bool tagOGGVorbisExt(const std::string &path) {
   TagLib::Ogg::Vorbis::File f(path.c_str());
   if (!f.isValid() || !f.tag()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   f.tag()->removeAllPictures();
   f.tag()->addPicture(makeFLACPicture());
   return f.save();
@@ -484,8 +491,7 @@ static bool tagOGGVorbisExt(const std::string &path) {
 static bool tagOGGOpusExt(const std::string &path) {
   TagLib::Ogg::Opus::File f(path.c_str());
   if (!f.isValid() || !f.tag()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   f.tag()->removeAllPictures();
   f.tag()->addPicture(makeFLACPicture());
   return f.save();
@@ -494,8 +500,7 @@ static bool tagOGGOpusExt(const std::string &path) {
 static bool tagOGGSpeexExt(const std::string &path) {
   TagLib::Ogg::Speex::File f(path.c_str());
   if (!f.isValid() || !f.tag()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   f.tag()->removeAllPictures();
   f.tag()->addPicture(makeFLACPicture());
   return f.save();
@@ -504,8 +509,7 @@ static bool tagOGGSpeexExt(const std::string &path) {
 static bool tagMP4Ext(const std::string &path) {
   TagLib::MP4::File f(path.c_str());
   if (!f.isValid() || !f.tag()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   TagLib::MP4::CoverArt cover(TagLib::MP4::CoverArt::JPEG, makeFakeJPEG());
   TagLib::MP4::CoverArtList list;
   list.append(cover);
@@ -516,8 +520,7 @@ static bool tagMP4Ext(const std::string &path) {
 static bool tagWAVExt(const std::string &path) {
   TagLib::RIFF::WAV::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.ID3v2Tag());
-  applyExtendedTagsViaProps(f.ID3v2Tag());
+  applyAllTagsViaProps(f.ID3v2Tag());
   f.ID3v2Tag()->addFrame(makeAPICFrame());
   return f.save();
 }
@@ -525,8 +528,7 @@ static bool tagWAVExt(const std::string &path) {
 static bool tagAIFFExt(const std::string &path) {
   TagLib::RIFF::AIFF::File f(path.c_str());
   if (!f.isValid() || !f.tag()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   f.tag()->addFrame(makeAPICFrame());
   return f.save();
 }
@@ -558,8 +560,7 @@ static bool tagAPEExt(const std::string &path) {
 static bool tagTTAExt(const std::string &path) {
   TagLib::TrueAudio::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.ID3v2Tag(true));
-  applyExtendedTagsViaProps(f.ID3v2Tag(true));
+  applyAllTagsViaProps(f.ID3v2Tag(true));
   f.ID3v2Tag(true)->addFrame(makeAPICFrame());
   return f.save();
 }
@@ -567,8 +568,7 @@ static bool tagTTAExt(const std::string &path) {
 static bool tagDSFExt(const std::string &path) {
   TagLib::DSF::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   f.tag()->addFrame(makeAPICFrame());
   return f.save();
 }
@@ -576,8 +576,7 @@ static bool tagDSFExt(const std::string &path) {
 static bool tagDSDIFFExt(const std::string &path) {
   TagLib::DSDIFF::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.ID3v2Tag(true));
   f.ID3v2Tag(true)->addFrame(makeAPICFrame());
   return f.save();
 }
@@ -585,8 +584,7 @@ static bool tagDSDIFFExt(const std::string &path) {
 static bool tagOGGFlacExt(const std::string &path) {
   TagLib::Ogg::FLAC::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   f.tag()->removeAllPictures();
   f.tag()->addPicture(makeFLACPicture());
   return f.save();
@@ -595,8 +593,7 @@ static bool tagOGGFlacExt(const std::string &path) {
 static bool tagASFExt(const std::string &path) {
   TagLib::ASF::File f(path.c_str());
   if (!f.isValid() || !f.tag()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   TagLib::ASF::Picture pic;
   pic.setType(TagLib::ASF::Picture::FrontCover);
   pic.setMimeType("image/jpeg");
@@ -620,8 +617,7 @@ static bool tagMatroskaExt(const std::string &path) {
 static bool tagMP3Chap(const std::string &path) {
   TagLib::MPEG::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.ID3v2Tag(true));
-  applyExtendedTagsViaProps(f.ID3v2Tag(true));
+  applyAllTagsViaProps(f.ID3v2Tag(true));
   addID3v2Chapters(f.ID3v2Tag(true));
   f.ID3v2Tag(true)->addFrame(makeAPICFrame());
   return f.save(TagLib::MPEG::File::ID3v2, TagLib::File::StripOthers,
@@ -631,8 +627,7 @@ static bool tagMP3Chap(const std::string &path) {
 static bool tagWAVChap(const std::string &path) {
   TagLib::RIFF::WAV::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.ID3v2Tag());
-  applyExtendedTagsViaProps(f.ID3v2Tag());
+  applyAllTagsViaProps(f.ID3v2Tag());
   addID3v2Chapters(f.ID3v2Tag());
   f.ID3v2Tag()->addFrame(makeAPICFrame());
   return f.save();
@@ -641,8 +636,7 @@ static bool tagWAVChap(const std::string &path) {
 static bool tagAIFFChap(const std::string &path) {
   TagLib::RIFF::AIFF::File f(path.c_str());
   if (!f.isValid() || !f.tag()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   addID3v2Chapters(f.tag());
   f.tag()->addFrame(makeAPICFrame());
   return f.save();
@@ -651,8 +645,7 @@ static bool tagAIFFChap(const std::string &path) {
 static bool tagTTAChap(const std::string &path) {
   TagLib::TrueAudio::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.ID3v2Tag(true));
-  applyExtendedTagsViaProps(f.ID3v2Tag(true));
+  applyAllTagsViaProps(f.ID3v2Tag(true));
   addID3v2Chapters(f.ID3v2Tag(true));
   f.ID3v2Tag(true)->addFrame(makeAPICFrame());
   return f.save();
@@ -661,8 +654,7 @@ static bool tagTTAChap(const std::string &path) {
 static bool tagDSFChap(const std::string &path) {
   TagLib::DSF::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   addID3v2Chapters(f.tag());
   f.tag()->addFrame(makeAPICFrame());
   return f.save();
@@ -671,8 +663,7 @@ static bool tagDSFChap(const std::string &path) {
 static bool tagDSDIFFChap(const std::string &path) {
   TagLib::DSDIFF::File f(path.c_str());
   if (!f.isValid()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.ID3v2Tag(true));
   addID3v2Chapters(f.ID3v2Tag(true));
   f.ID3v2Tag(true)->addFrame(makeAPICFrame());
   return f.save();
@@ -681,8 +672,7 @@ static bool tagDSDIFFChap(const std::string &path) {
 static bool tagMP4NeroChap(const std::string &path) {
   TagLib::MP4::File f(path.c_str());
   if (!f.isValid() || !f.tag()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   addNeroChapters(f);
   TagLib::MP4::CoverArt cover(TagLib::MP4::CoverArt::JPEG, makeFakeJPEG());
   TagLib::MP4::CoverArtList list;
@@ -694,8 +684,7 @@ static bool tagMP4NeroChap(const std::string &path) {
 static bool tagMP4QtChap(const std::string &path) {
   TagLib::MP4::File f(path.c_str());
   if (!f.isValid() || !f.tag()) return false;
-  applyBasicTags(f.tag());
-  applyExtendedTagsViaProps(f.tag());
+  applyAllTagsViaProps(f.tag());
   addQtChapters(f);
   TagLib::MP4::CoverArt cover(TagLib::MP4::CoverArt::JPEG, makeFakeJPEG());
   TagLib::MP4::CoverArtList list;
