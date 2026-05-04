@@ -96,6 +96,11 @@ export class FlacFile extends File {
   /** All parsed metadata blocks (excluding Picture and Padding). */
   private _blocks: MetadataBlock[] = [];
 
+  /** iXML metadata extracted from an APPLICATION block; empty string if absent. */
+  private _iXMLData: string = "";
+  /** Raw BEXT (Broadcast Audio Extension) payload from an APPLICATION block; empty if absent. */
+  private _bextData: ByteVector = ByteVector.fromSize(0);
+
   // Bookkeeping for tag / block locations
   /** File offset of the ID3v2 tag, or -1 if not present. */
   private _id3v2Location: offset_t = -1;
@@ -175,13 +180,31 @@ export class FlacFile extends File {
     // Rebuild metadata block list
     // -----------------------------------------------------------------------
 
-    // Start with non-comment, non-picture, non-padding blocks (e.g. STREAMINFO)
-    const newBlocks: MetadataBlock[] = this._blocks.filter(
-      b =>
-        b.code !== BlockType.VorbisComment &&
-        b.code !== BlockType.Picture &&
-        b.code !== BlockType.Padding,
-    );
+    // Start with non-comment, non-picture, non-padding blocks (e.g. STREAMINFO),
+    // also dropping recognized iXML/bext APPLICATION blocks (they will be
+    // re-emitted below from _iXMLData / _bextData).
+    const newBlocks: MetadataBlock[] = this._blocks.filter(b => {
+      if (
+        b.code === BlockType.VorbisComment ||
+        b.code === BlockType.Picture ||
+        b.code === BlockType.Padding
+      ) {
+        return false;
+      }
+      if (b.code === BlockType.Application && b.data.length >= 4) {
+        const appId = b.data.mid(0, 4).toString(StringType.Latin1);
+        let innerId = "";
+        if (appId === "riff" && b.data.length >= 12) {
+          innerId = b.data.mid(4, 4).toString(StringType.Latin1);
+        } else if (appId === "iXML" || appId === "bext") {
+          innerId = appId;
+        }
+        if (innerId === "iXML" || innerId === "bext") {
+          return false;
+        }
+      }
+      return true;
+    });
 
     // Append Vorbis Comment block
     newBlocks.push({ code: BlockType.VorbisComment, data: xiphData });
@@ -189,6 +212,25 @@ export class FlacFile extends File {
     // Append Picture blocks
     for (const pic of this._pictures) {
       newBlocks.push({ code: BlockType.Picture, data: pic.render() });
+    }
+
+    // Append fresh APPLICATION/"riff" blocks for iXML and bext if non-empty.
+    // Per FLAC foreign-metadata convention the payload is a RIFF chunk:
+    // <4 byte FOURCC><4 byte LE size><data>.
+    if (this._iXMLData.length > 0) {
+      const xml = ByteVector.fromString(this._iXMLData, StringType.UTF8);
+      const payload = ByteVector.fromString("riff", StringType.Latin1);
+      payload.append(ByteVector.fromString("iXML", StringType.Latin1));
+      payload.append(ByteVector.fromUInt(xml.length, false));
+      payload.append(xml);
+      newBlocks.push({ code: BlockType.Application, data: payload });
+    }
+    if (this._bextData.length > 0) {
+      const payload = ByteVector.fromString("riff", StringType.Latin1);
+      payload.append(ByteVector.fromString("bext", StringType.Latin1));
+      payload.append(ByteVector.fromUInt(this._bextData.length, false));
+      payload.append(this._bextData);
+      newBlocks.push({ code: BlockType.Application, data: payload });
     }
 
     // -----------------------------------------------------------------------
@@ -421,6 +463,83 @@ export class FlacFile extends File {
   }
 
   // ---------------------------------------------------------------------------
+  // iXML / BEXT APPLICATION block accessors
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns the raw iXML data as a string.  Empty if no iXML metadata is
+   * present.  Read from an APPLICATION metadata block (RFC 9639 § 8.4)
+   * carrying either the FLAC foreign-metadata application ID `"riff"` (with
+   * an iXML RIFF chunk as payload) or the direct application ID `"iXML"`.
+   *
+   * @see {@link setiXMLData}
+   * @see {@link hasiXMLData}
+   */
+  get iXMLData(): string {
+    return this._iXMLData;
+  }
+
+  /**
+   * Sets the iXML data.  Pass an empty string to remove the iXML APPLICATION
+   * block on the next {@link save}.  On save the data is written using the
+   * FLAC foreign-metadata convention: an APPLICATION block with application
+   * ID `"riff"` wrapping an iXML RIFF chunk.
+   *
+   * @see {@link iXMLData}
+   * @see {@link hasiXMLData}
+   */
+  set iXMLData(data: string) {
+    this._iXMLData = data;
+  }
+
+  /**
+   * Returns `true` if iXML data is currently set (i.e. {@link iXMLData} is
+   * non-empty).
+   *
+   * @see {@link iXMLData}
+   */
+  get hasiXMLData(): boolean {
+    return this._iXMLData.length > 0;
+  }
+
+  /**
+   * Returns the raw BEXT (Broadcast Audio Extension) data as a
+   * {@link ByteVector}.  Empty if no BEXT metadata is present.  Read from an
+   * APPLICATION metadata block (RFC 9639 § 8.4) carrying either the FLAC
+   * foreign-metadata application ID `"riff"` (with a bext RIFF chunk as
+   * payload) or the direct application ID `"bext"`.
+   *
+   * @see {@link bextData}
+   * @see {@link hasBEXTData}
+   */
+  get BEXTData(): ByteVector {
+    return this._bextData;
+  }
+
+  /**
+   * Sets the BEXT data.  Pass an empty {@link ByteVector} to remove the BEXT
+   * APPLICATION block on the next {@link save}.  On save the data is written
+   * using the FLAC foreign-metadata convention: an APPLICATION block with
+   * application ID `"riff"` wrapping a bext RIFF chunk.
+   *
+   * @see {@link BEXTData}
+   * @see {@link hasBEXTData}
+   */
+  set BEXTData(data: ByteVector) {
+    this._bextData = data;
+  }
+
+  /**
+   * Returns `true` if BEXT data is currently set (i.e. {@link BEXTData} is
+   * non-empty).
+   *
+   * @see {@link BEXTData}
+   */
+  get hasBEXTData(): boolean {
+    return this._bextData.length > 0;
+  }
+
+  // ---------------------------------------------------------------------------
   // Complex properties — FLAC picture block support
   // ---------------------------------------------------------------------------
 
@@ -646,6 +765,45 @@ export class FlacFile extends File {
         // Don't store picture blocks in _blocks – they're managed separately
       } else if (blockType === BlockType.Padding) {
         // Skip padding blocks
+      } else if (blockType === BlockType.Application && data.length >= 4) {
+        // APPLICATION block (RFC 9639 § 8.4):
+        //   <4 bytes>  big-endian application ID (ASCII FOURCC in practice)
+        //   <n bytes>  application-defined data
+        //
+        // We recognize two conventions for carrying RIFF iXML / bext metadata:
+        //   1. App ID "riff" — IANA-registered FLAC foreign-metadata wrapper.
+        //      Payload is a RIFF chunk: <4 byte FOURCC><4 byte LE size><data>.
+        //   2. App ID "iXML" or "bext" — direct, used by some third-party tools
+        //      (e.g. Sequoia). Payload is the chunk data verbatim.
+        //
+        // Other application IDs (and "riff" wrapping FOURCCs we don't recognize)
+        // are stored as opaque blocks so they round-trip unchanged.
+        const appId = data.mid(0, 4).toString(StringType.Latin1);
+        let innerId = "";
+        let innerData: ByteVector = ByteVector.fromSize(0);
+
+        if (appId === "riff" && data.length >= 12) {
+          innerId = data.mid(4, 4).toString(StringType.Latin1);
+          const innerSize = data.toUInt(8, 4, false);
+          innerData = data.mid(12, innerSize);
+        } else if (appId === "iXML" || appId === "bext") {
+          innerId = appId;
+          innerData = data.mid(4);
+        }
+
+        if (innerId === "iXML") {
+          if (this._iXMLData.length === 0) {
+            this._iXMLData = innerData.toString(StringType.UTF8);
+          }
+          // Duplicate iXML blocks are discarded
+        } else if (innerId === "bext") {
+          if (this._bextData.length === 0) {
+            this._bextData = innerData;
+          }
+          // Duplicate bext blocks are discarded
+        } else {
+          this._blocks.push({ code: blockType, data });
+        }
       } else {
         this._blocks.push({ code: blockType, data });
       }
