@@ -20,7 +20,6 @@ import {
   readUintValue,
   readFloatValue,
   readStringValue,
-  renderVoidElement,
   encodeId,
   encodeVint,
   combineByteVectors,
@@ -28,6 +27,30 @@ import {
   renderUintElement,
   type EbmlElement,
 } from "./ebml/ebmlElement.js";
+
+/**
+ * Controls how tags, attachments, and chapters are written to the file.
+ * Mirrors `Matroska::WriteStyle` in C++ TagLib.
+ */
+export enum MatroskaWriteStyle {
+  /**
+   * Write as compactly as possible: shrink the file when elements get smaller,
+   * insert bytes when elements grow.  This is the default.
+   */
+  Compact = 0,
+  /**
+   * Do not shrink existing elements; add void padding when content gets smaller.
+   * Insert bytes when content gets larger (same as {@link Compact} for growth).
+   */
+  DoNotShrink = 1,
+  /**
+   * Like {@link DoNotShrink} but also avoids inserting bytes for non-trailing
+   * elements when they grow: instead the old slot is replaced with a Void and
+   * the new content is appended at the end of the segment.  This greatly reduces
+   * write latency on large or slow (network) file-systems.
+   */
+  AvoidInsert = 2,
+}
 
 /**
  * Returns the complex property key corresponding to an attached file.
@@ -85,12 +108,22 @@ export class MatroskaFile extends File {
   // Element locations saved during read, used during save
   /** The parsed Tags EBML element, or `null` if absent. */
   private _tagsEl: EbmlElement | null = null;
+  /**
+   * Total allocated space for the Tags element including any immediately
+   * following Void elements (padding).  Used by {@link MatroskaWriteStyle.DoNotShrink}
+   * and {@link MatroskaWriteStyle.AvoidInsert} to avoid shrinking the slot.
+   */
+  private _tagsAllocatedSize: number = 0;
   /** The parsed Attachments EBML element, or `null` if absent. */
   private _attachmentsEl: EbmlElement | null = null;
+  /** Total allocated space for the Attachments element including trailing Void padding. */
+  private _attachmentsAllocatedSize: number = 0;
   /** The parsed chapters, or `null` if absent. */
   private _chapters: MatroskaChapters | null = null;
   /** The parsed Chapters EBML element, or `null` if absent. */
   private _chaptersEl: EbmlElement | null = null;
+  /** Total allocated space for the Chapters element including trailing Void padding. */
+  private _chaptersAllocatedSize: number = 0;
   // Segment size VINT location: byte offset right after the segment ID
   /** Byte offset of the segment size VINT, or -1 if unknown. */
   private _segmentSizeVintOffset: number = -1;
@@ -161,144 +194,285 @@ export class MatroskaFile extends File {
   }
 
   /**
-   * Write the current tag and attachments back to the file.
+   * Write the current tag, attachments, and chapters back to the file.
+   * @param writeStyle - Controls how elements are written.  Defaults to
+   *   {@link MatroskaWriteStyle.Compact} (same as C++ TagLib default).
    * @returns `true` on success, `false` if the file is read-only or invalid.
    */
-  async save(): Promise<boolean> {
-    if (this.readOnly) {
-      return false;
-    }
+  async save(writeStyle: MatroskaWriteStyle = MatroskaWriteStyle.Compact): Promise<boolean> {
+    if (this.readOnly) return false;
+    if (!this._valid) return false;
 
-    if (!this._valid) {
-      return false;
-    }
+    if (!this._tag) this._tag = new MatroskaTag();
 
-    // Create empty tag if needed (so we can always serialize)
-    if (!this._tag) {
-      this._tag = new MatroskaTag();
-    }
-
-    // Render the new Tags element (null if empty)
     const newTagsData = this._tag.renderTags();
     const newAttachmentsData = this._tag.renderAttachments();
     const newChaptersData = this._chapters?.renderChapters() ?? null;
 
-    // Replace or insert Tags element
-    const tagsOk = await this.replaceOrInsertElement(
-      this._tagsEl,
-      newTagsData,
-      EbmlId.Tags,
-    );
+    switch (writeStyle) {
+      case MatroskaWriteStyle.DoNotShrink:
+        return this.saveCompactOrDoNotShrink(newTagsData, newAttachmentsData, newChaptersData, true);
+      case MatroskaWriteStyle.AvoidInsert:
+        return this.saveAvoidInsert(newTagsData, newAttachmentsData, newChaptersData);
+      default: // Compact
+        return this.saveCompactOrDoNotShrink(newTagsData, newAttachmentsData, newChaptersData, false);
+    }
+  }
 
-    // Replace or insert Attachments element
-    const attachOk = await this.replaceOrInsertElement(
-      this._attachmentsEl,
-      newAttachmentsData,
-      EbmlId.Attachments,
-    );
+  // ---------------------------------------------------------------------------
+  // Save helpers
+  // ---------------------------------------------------------------------------
 
-    // Replace or insert Chapters element
-    const chaptersOk = await this.replaceOrInsertElement(
-      this._chaptersEl,
-      newChaptersData,
-      EbmlId.Chapters,
-    );
+  /**
+   * Implements the {@link MatroskaWriteStyle.Compact} and
+   * {@link MatroskaWriteStyle.DoNotShrink} save strategies.
+   *
+   * Elements are processed in ascending file-offset order.  Each element is
+   * replaced via {@link IOStream.insert}, which correctly shrinks or grows the
+   * underlying file in place.  Cumulative offset shifts are tracked so that
+   * subsequent elements are written at the correct adjusted positions.
+   *
+   * When `doNotShrink` is `true`, shrinking elements are padded with a Void to
+   * preserve the existing slot size.  When `false` (Compact), the file is
+   * physically shrunk.
+   *
+   * After all insertions a single SeekHead rewrite updates both the explicitly
+   * written entries and any entries for other elements that shifted.
+   * @param newTagsData - Rendered Tags data, or `null` to remove.
+   * @param newAttachmentsData - Rendered Attachments data, or `null` to remove.
+   * @param newChaptersData - Rendered Chapters data, or `null` to remove.
+   * @param doNotShrink - Whether to pad shrinking elements to their old size.
+   */
+  private async saveCompactOrDoNotShrink(
+    newTagsData: ByteVector | null,
+    newAttachmentsData: ByteVector | null,
+    newChaptersData: ByteVector | null,
+    doNotShrink: boolean,
+  ): Promise<boolean> {
+    /** A processed element record. */
+    type Entry = {
+      el: EbmlElement;
+      data: ByteVector | null;
+      id: number;
+      /** Old used size: element bytes.  For DoNotShrink includes trailing voids. */
+      oldUsedSize: number;
+    };
 
-    return tagsOk && attachOk && chaptersOk;
+    // Build sorted list of existing elements
+    const entries: Entry[] = [];
+    if (this._tagsEl) {
+      entries.push({
+        el: this._tagsEl, data: newTagsData, id: EbmlId.Tags,
+        oldUsedSize: doNotShrink ? this._tagsAllocatedSize : (this._tagsEl.headSize + this._tagsEl.dataSize),
+      });
+    }
+    if (this._attachmentsEl) {
+      entries.push({
+        el: this._attachmentsEl, data: newAttachmentsData, id: EbmlId.Attachments,
+        oldUsedSize: doNotShrink ? this._attachmentsAllocatedSize : (this._attachmentsEl.headSize + this._attachmentsEl.dataSize),
+      });
+    }
+    if (this._chaptersEl) {
+      entries.push({
+        el: this._chaptersEl, data: newChaptersData, id: EbmlId.Chapters,
+        oldUsedSize: doNotShrink ? this._chaptersAllocatedSize : (this._chaptersEl.headSize + this._chaptersEl.dataSize),
+      });
+    }
+    entries.sort((a, b) => a.el.offset - b.el.offset);
+
+    // Snapshot ALL SeekHead entries before any modifications
+    const origSeekEntries = await this.readAllSeekHeadEntries();
+
+    // Insertion log: needed to compute cumulative shifts for external entries
+    const insertionLog: Array<{ origAbsOffset: number; origSize: number; newSize: number }> = [];
+
+    // Final absolute offsets for elements we explicitly write
+    const finalAbsOffsets = new Map<number, number>();
+    // Final allocated sizes for elements we explicitly write
+    const finalAllocSizes = new Map<number, number>();
+    const removedIds = new Set<number>();
+
+    // ---- Phase 1: replace/remove existing elements ----
+    for (const entry of entries) {
+      const { el, data, id, oldUsedSize } = entry;
+      const origOffset = el.offset;
+      const shift = this.computeInsertionShift(insertionLog, origOffset);
+      const adjustedOffset = origOffset + shift;
+
+      if (!data || data.length === 0) {
+        await this._stream.removeBlock(adjustedOffset, oldUsedSize);
+        insertionLog.push({ origAbsOffset: origOffset, origSize: oldUsedSize, newSize: 0 });
+        removedIds.add(id);
+      } else if (doNotShrink && data.length < oldUsedSize) {
+        const voidPad = this.renderTaglibCompatVoidElement(oldUsedSize - data.length);
+        const padded = combineByteVectors([data, voidPad]);
+        await this._stream.insert(padded, adjustedOffset, oldUsedSize);
+        // delta = 0
+        insertionLog.push({ origAbsOffset: origOffset, origSize: oldUsedSize, newSize: oldUsedSize });
+        finalAbsOffsets.set(id, adjustedOffset);
+        finalAllocSizes.set(id, oldUsedSize); // preserved slot
+      } else {
+        await this._stream.insert(data, adjustedOffset, oldUsedSize);
+        insertionLog.push({ origAbsOffset: origOffset, origSize: oldUsedSize, newSize: data.length });
+        finalAbsOffsets.set(id, adjustedOffset);
+        finalAllocSizes.set(id, data.length);
+      }
+    }
+
+    // ---- Phase 2: append new elements ----
+    const processedIds = new Set([...finalAbsOffsets.keys(), ...removedIds]);
+    const newElements: Array<{ data: ByteVector; id: number }> = [];
+    if (!processedIds.has(EbmlId.Tags) && newTagsData && newTagsData.length > 0) {
+      newElements.push({ data: newTagsData, id: EbmlId.Tags });
+    }
+    if (!processedIds.has(EbmlId.Attachments) && newAttachmentsData && newAttachmentsData.length > 0) {
+      newElements.push({ data: newAttachmentsData, id: EbmlId.Attachments });
+    }
+    if (!processedIds.has(EbmlId.Chapters) && newChaptersData && newChaptersData.length > 0) {
+      newElements.push({ data: newChaptersData, id: EbmlId.Chapters });
+    }
+    // Compute append positions and write without touching SeekHead yet
+    let appendCursor = await this._stream.length();
+    const appendRelOffsets = new Map<number, number>(); // id → relOffset
+    for (const { data, id } of newElements) {
+      appendRelOffsets.set(id, appendCursor - this._segmentDataOffset);
+      finalAllocSizes.set(id, data.length);
+      await this._stream.seek(appendCursor, Position.Beginning);
+      await this._stream.writeBlock(data);
+      appendCursor += data.length;
+    }
+
+    // ---- Phase 3: update segment size ----
+    await this.refreshSegmentSize();
+
+    // ---- Phase 4: rewrite SeekHead ----
+    const finalEntries = new Map<number, number>(); // id → relOffset
+    for (const [eid, origRelOffset] of origSeekEntries) {
+      if (removedIds.has(eid)) continue;
+      if (finalAbsOffsets.has(eid)) {
+        finalEntries.set(eid, finalAbsOffsets.get(eid)! - this._segmentDataOffset);
+      } else {
+        // External element: apply shift
+        const origAbsOffset = this._segmentDataOffset + origRelOffset;
+        const shift = this.computeInsertionShift(insertionLog, origAbsOffset);
+        finalEntries.set(eid, origRelOffset + shift);
+      }
+    }
+    for (const [id, relOffset] of appendRelOffsets) {
+      finalEntries.set(id, relOffset);
+    }
+    await this.writeSeekHeadFromMap(finalEntries);
+
+    // ---- Phase 5: update in-memory element descriptors ----
+    await this.refreshAllElementDescriptors();
+
+    return true;
   }
 
   /**
-   * Replace an existing EBML element with new data, or insert at end of segment.
-   * Uses Void elements to fill any leftover space if the new data is smaller.
+   * Implements the {@link MatroskaWriteStyle.AvoidInsert} save strategy.
+   *
+   * For each existing element:
+   * - **Trailing** (element + padding extends to EOF): shrink → truncate;
+   *   grow → extend in place.
+   * - **Non-trailing**: shrink → void-pad to preserve slot;
+   *   grow → void old slot + append new at end of segment.
+   *
+   * This avoids inserting bytes into the middle of the file, which is critical
+   * for large or network files.
+   * @param newTagsData - Rendered Tags data, or `null` to remove.
+   * @param newAttachmentsData - Rendered Attachments data, or `null` to remove.
+   * @param newChaptersData - Rendered Chapters data, or `null` to remove.
    */
-  private async replaceOrInsertElement(
-    existing: EbmlElement | null,
-    newData: ByteVector | null,
-    elementId: number,
+  private async saveAvoidInsert(
+    newTagsData: ByteVector | null,
+    newAttachmentsData: ByteVector | null,
+    newChaptersData: ByteVector | null,
   ): Promise<boolean> {
-    if (!newData || newData.length === 0) {
-      // If empty and no existing element, nothing to do
-      if (!existing) return true;
+    const existingEls: Array<{ el: EbmlElement; data: ByteVector | null; id: number; allocatedSize: number }> = [];
+    if (this._tagsEl) existingEls.push({ el: this._tagsEl, data: newTagsData, id: EbmlId.Tags, allocatedSize: this._tagsAllocatedSize });
+    if (this._attachmentsEl) existingEls.push({ el: this._attachmentsEl, data: newAttachmentsData, id: EbmlId.Attachments, allocatedSize: this._attachmentsAllocatedSize });
+    if (this._chaptersEl) existingEls.push({ el: this._chaptersEl, data: newChaptersData, id: EbmlId.Chapters, allocatedSize: this._chaptersAllocatedSize });
 
-      await this.removeSeekHeadEntry(elementId);
-
-      // If the element is at the end of the file, truncate instead of voiding.
-      // This allows save→clear to restore the file to its pre-write state (C++ parity).
-      const elementEnd = existing.offset + existing.headSize + existing.dataSize;
+    for (const { el, data, id, allocatedSize } of existingEls) {
       const fileLength = await this._stream.length();
-      if (elementEnd >= fileLength) {
-        await this._stream.truncate(existing.offset);
-        // Shrink the segment size VINT to reflect the truncation
-        if (this._segmentSizeVintOffset >= 0 && this._segmentSizeVintLength > 0
-            && this._segmentDataOffset >= 0) {
-          const newSegmentDataSize = existing.offset - this._segmentDataOffset;
-          const newSizeVint = encodeVint(newSegmentDataSize, this._segmentSizeVintLength);
-          if (newSizeVint.length === this._segmentSizeVintLength) {
-            await this._stream.seek(this._segmentSizeVintOffset, Position.Beginning);
-            await this._stream.writeBlock(newSizeVint);
-          }
-        }
-        return true;
-      }
+      // An element is "at end" when its allocated space reaches EOF.
+      // Only such elements may shrink via truncation or grow in place.
+      const isAtEnd = el.offset + allocatedSize >= fileLength;
+      const oldTotalSize = el.headSize + el.dataSize;
 
-      // Otherwise replace with Void
-      const voidEl = renderVoidElement(existing.headSize + existing.dataSize);
-      await this._stream.seek(existing.offset, Position.Beginning);
-      await this._stream.writeBlock(voidEl);
-      return true;
-    }
-
-    if (existing) {
-      const oldTotalSize = existing.headSize + existing.dataSize;
-      const newTotalSize = newData.length;
-
-      if (newTotalSize <= oldTotalSize) {
-        // Write new element in place, pad with Void if needed
-        await this._stream.seek(existing.offset, Position.Beginning);
-        await this._stream.writeBlock(newData);
-        const leftover = oldTotalSize - newTotalSize;
-        if (leftover >= 2) {
-          // Write a Void element to fill the gap
-          const voidEl = renderVoidElement(leftover);
-          await this._stream.writeBlock(voidEl);
-        } else if (leftover === 1) {
-          // 1 byte gap: write a null byte (absorbed by surrounding elements)
-          await this._stream.writeBlock(new ByteVector(new Uint8Array([0x00])));
-        }
-        return true;
-      } else {
-        // New element is larger than existing.
-        const existingEnd = existing.offset + oldTotalSize;
-        const fileLength = await this._stream.length();
-        if (existingEnd >= fileLength) {
-          // Existing element is at EOF — overwrite in place and extend the file.
-          // The offset stays the same so no SeekHead update is needed.
-          await this._stream.seek(existing.offset, Position.Beginning);
-          await this._stream.writeBlock(newData);
-          // Update segment size
-          if (this._segmentSizeVintOffset >= 0 && this._segmentSizeVintLength > 0
-              && this._segmentDataOffset >= 0) {
-            const newSegmentDataSize = existing.offset + newData.length - this._segmentDataOffset;
-            const newSizeVint = encodeVint(newSegmentDataSize, this._segmentSizeVintLength);
-            if (newSizeVint.length === this._segmentSizeVintLength) {
-              await this._stream.seek(this._segmentSizeVintOffset, Position.Beginning);
-              await this._stream.writeBlock(newSizeVint);
-            }
-          }
+      if (!data || data.length === 0) {
+        // Remove element
+        await this.removeSeekHeadEntry(id);
+        if (isAtEnd) {
+          await this._stream.truncate(el.offset);
+          await this.refreshSegmentSize();
         } else {
-          // Existing element is not at EOF — replace with Void, append new at EOF
-          const voidEl = renderVoidElement(oldTotalSize);
-          await this._stream.seek(existing.offset, Position.Beginning);
-          await this._stream.writeBlock(voidEl);
-          await this.appendAtEndOfSegment(newData, elementId);
+          await this._stream.seek(el.offset, Position.Beginning);
+          await this._stream.writeBlock(this.renderTaglibCompatVoidElement(oldTotalSize));
         }
-        return true;
+        continue;
       }
-    } else {
-      // No existing element — append at end of segment
-      await this.appendAtEndOfSegment(newData, elementId);
-      return true;
+
+      const newSize = data.length;
+
+      if (newSize <= allocatedSize) {
+        // Content fits in existing allocated slot
+        if (isAtEnd && newSize < allocatedSize) {
+          // Trailing element shrinks: truncate to save space
+          await this._stream.seek(el.offset, Position.Beginning);
+          await this._stream.writeBlock(data);
+          await this._stream.truncate(el.offset + newSize);
+          if (this._segmentDataOffset >= 0) {
+            await this.updateSeekHeadEntry(id, el.offset - this._segmentDataOffset);
+          }
+          await this.refreshSegmentSize();
+        } else {
+          // Non-trailing or exact fit: write + void-pad remaining space
+          await this._stream.seek(el.offset, Position.Beginning);
+          await this._stream.writeBlock(data);
+          const leftover = allocatedSize - newSize;
+          if (leftover >= 2) {
+            await this._stream.writeBlock(this.renderTaglibCompatVoidElement(leftover));
+          } else if (leftover === 1) {
+            await this._stream.writeBlock(new ByteVector(new Uint8Array([0x00])));
+          }
+          if (this._segmentDataOffset >= 0) {
+            await this.updateSeekHeadEntry(id, el.offset - this._segmentDataOffset);
+          }
+        }
+      } else if (isAtEnd) {
+        // Trailing element grows: extend in place (same as Compact)
+        await this._stream.seek(el.offset, Position.Beginning);
+        await this._stream.writeBlock(data);
+        if (this._segmentDataOffset >= 0) {
+          await this.updateSeekHeadEntry(id, el.offset - this._segmentDataOffset);
+        }
+        await this.refreshSegmentSize();
+      } else {
+        // Non-trailing element grows: void old slot, append new at end
+        await this._stream.seek(el.offset, Position.Beginning);
+        await this._stream.writeBlock(this.renderTaglibCompatVoidElement(oldTotalSize));
+        await this.appendAtEndOfSegment(data, id);
+      }
     }
+
+    // Append completely new elements
+    const processedIds = new Set(existingEls.map(e => e.id));
+    if (!processedIds.has(EbmlId.Tags) && newTagsData && newTagsData.length > 0) {
+      await this.appendAtEndOfSegment(newTagsData, EbmlId.Tags);
+    }
+    if (!processedIds.has(EbmlId.Attachments) && newAttachmentsData && newAttachmentsData.length > 0) {
+      await this.appendAtEndOfSegment(newAttachmentsData, EbmlId.Attachments);
+    }
+    if (!processedIds.has(EbmlId.Chapters) && newChaptersData && newChaptersData.length > 0) {
+      await this.appendAtEndOfSegment(newChaptersData, EbmlId.Chapters);
+    }
+
+    // Update in-memory element descriptors for next save
+    await this.refreshAllElementDescriptors();
+
+    return true;
   }
 
   /**
@@ -316,6 +490,128 @@ export class MatroskaFile extends File {
     const vint = encodeVint(dataSize, sizeLength);
     const padding = new ByteVector(new Uint8Array(dataSize));
     return combineByteVectors([idByte, vint, padding]);
+  }
+
+  /**
+   * Given a log of insertions (in file-offset order), compute the cumulative
+   * byte shift that has been applied to content at or after `targetAbsOffset`.
+   *
+   * Each insertion record contains the original absolute offset, original size,
+   * and the new size written at that position.  Content whose original start
+   * falls at or after `origAbsOffset + origSize` (i.e. content AFTER the
+   * replaced region) is shifted by `newSize - origSize`.
+   * @param insertionLog - Ordered list of insertions already performed.
+   * @param targetAbsOffset - The original absolute file offset to query.
+   * @returns Total shift in bytes applied to content at `targetAbsOffset`.
+   */
+  private computeInsertionShift(
+    insertionLog: Array<{ origAbsOffset: number; origSize: number; newSize: number }>,
+    targetAbsOffset: number,
+  ): number {
+    let shift = 0;
+    for (const ins of insertionLog) {
+      // Content at targetAbsOffset shifts iff the insertion replaced bytes
+      // that ended BEFORE targetAbsOffset (i.e. target is after replaced region)
+      if (ins.origAbsOffset + ins.origSize <= targetAbsOffset) {
+        shift += ins.newSize - ins.origSize;
+      }
+    }
+    return shift;
+  }
+
+  /**
+   * Read all Seek entries from the SeekHead and return them as a map of
+   * element ID → segment-relative offset.
+   * @returns Map of element IDs to their segment-relative offsets, or empty
+   *   map if there is no SeekHead or segment data offset is unknown.
+   */
+  private async readAllSeekHeadEntries(): Promise<Map<number, number>> {
+    const result = new Map<number, number>();
+    if (!this._seekHeadEl || this._segmentDataOffset < 0) return result;
+
+    const seekDataOffset = this._seekHeadEl.offset + this._seekHeadEl.headSize;
+    const children = await readChildElements(this._stream, seekDataOffset, this._seekHeadEl.dataSize);
+
+    for (const child of children) {
+      if (child.id === EbmlId.Seek) {
+        const seekChildren = await readChildElements(
+          this._stream, child.offset + child.headSize, child.dataSize,
+        );
+        let seekId = 0, seekPos = 0;
+        for (const sc of seekChildren) {
+          if (sc.id === EbmlId.SeekID) seekId = await readUintValue(this._stream, sc);
+          if (sc.id === EbmlId.SeekPosition) seekPos = await readUintValue(this._stream, sc);
+        }
+        if (seekId) result.set(seekId, seekPos);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Rewrite the SeekHead in-place with the given entry map (element ID →
+   * segment-relative offset).  Uses the Void element immediately after the
+   * SeekHead as padding buffer.  If the new SeekHead would exceed the available
+   * space, the write is silently skipped.
+   * @param entries - Map of element IDs to their segment-relative offsets.
+   */
+  private async writeSeekHeadFromMap(entries: Map<number, number>): Promise<void> {
+    if (!this._seekHeadEl) return;
+
+    const sortedEntries = [...entries.entries()].sort((a, b) => a[1] - b[1]);
+
+    const seekElements = sortedEntries.map(([id, pos]) => renderEbmlElement(
+      EbmlId.Seek,
+      combineByteVectors([
+        renderEbmlElement(EbmlId.SeekID, encodeId(id)),
+        renderUintElement(EbmlId.SeekPosition, pos),
+      ]),
+    ));
+    const newSeekHeadData = combineByteVectors(seekElements);
+
+    const newSeekHeadIdSize = idSize(EbmlId.SeekHead);
+    const newSeekHeadSizeVint = encodeVint(newSeekHeadData.length);
+    const newSeekHeadTotal = newSeekHeadIdSize + newSeekHeadSizeVint.length + newSeekHeadData.length;
+
+    const oldSeekHeadTotal = this._seekHeadEl.headSize + this._seekHeadEl.dataSize;
+    const oldVoidTotal = this._voidAfterSeekHeadEl
+      ? this._voidAfterSeekHeadEl.headSize + this._voidAfterSeekHeadEl.dataSize
+      : 0;
+    const totalAvailable = oldSeekHeadTotal + oldVoidTotal;
+
+    if (newSeekHeadTotal > totalAvailable) return;
+
+    await this._stream.seek(this._seekHeadEl.offset, Position.Beginning);
+    await this._stream.writeBlock(combineByteVectors([
+      encodeId(EbmlId.SeekHead),
+      newSeekHeadSizeVint,
+      newSeekHeadData,
+    ]));
+
+    const newHeadSize = newSeekHeadIdSize + newSeekHeadSizeVint.length;
+    this._seekHeadEl = {
+      id: EbmlId.SeekHead,
+      dataSize: newSeekHeadData.length,
+      headSize: newHeadSize,
+      offset: this._seekHeadEl.offset,
+    };
+
+    const remaining = totalAvailable - newSeekHeadTotal;
+    if (remaining >= 1) {
+      const voidEl = this.renderTaglibCompatVoidElement(remaining);
+      await this._stream.writeBlock(voidEl);
+      const voidIdSize = 1;
+      const voidSizeVintLength = Math.min(remaining - voidIdSize, 8);
+      const voidDataSize = remaining - voidIdSize - voidSizeVintLength;
+      this._voidAfterSeekHeadEl = {
+        id: EbmlId.VoidElement,
+        dataSize: voidDataSize,
+        headSize: voidIdSize + voidSizeVintLength,
+        offset: this._seekHeadEl.offset + newHeadSize + newSeekHeadData.length,
+      };
+    } else {
+      this._voidAfterSeekHeadEl = null;
+    }
   }
 
   /**
@@ -346,96 +642,32 @@ export class MatroskaFile extends File {
   private async _modifySeekHeadEntry(elementId: number, relativeOffset: number | null): Promise<void> {
     if (!this._seekHeadEl) return;
 
-    // Re-parse the existing SeekHead entries from the stream
-    const seekDataOffset = this._seekHeadEl.offset + this._seekHeadEl.headSize;
-    const children = await readChildElements(this._stream, seekDataOffset, this._seekHeadEl.dataSize);
+    const entries = await this.readAllSeekHeadEntries();
 
-    const entries = new Map<number, number>(); // elementId → relativeOffset
-    for (const child of children) {
-      if (child.id === EbmlId.Seek) {
-        const seekChildren = await readChildElements(
-          this._stream, child.offset + child.headSize, child.dataSize,
-        );
-        let seekId = 0, seekPos = 0;
-        for (const sc of seekChildren) {
-          if (sc.id === EbmlId.SeekID) seekId = await readUintValue(this._stream, sc);
-          if (sc.id === EbmlId.SeekPosition) seekPos = await readUintValue(this._stream, sc);
-        }
-        if (seekId) entries.set(seekId, seekPos);
-      }
-    }
-
-    // Add/update or remove the entry
     if (relativeOffset !== null) {
       entries.set(elementId, relativeOffset);
     } else {
       entries.delete(elementId);
     }
-    const sortedEntries = [...entries.entries()].sort((a, b) => a[1] - b[1]);
 
-    // Render each Seek element: SeekID (binary element ID) + SeekPosition (uint)
-    const seekElements = sortedEntries.map(([id, pos]) => renderEbmlElement(
-      EbmlId.Seek,
-      combineByteVectors([
-        renderEbmlElement(EbmlId.SeekID, encodeId(id)),
-        renderUintElement(EbmlId.SeekPosition, pos),
-      ]),
-    ));
-    const newSeekHeadData = combineByteVectors(seekElements);
+    await this.writeSeekHeadFromMap(entries);
+  }
 
-    // Compute new SeekHead total size
-    const newSeekHeadIdSize = idSize(EbmlId.SeekHead); // 4 bytes
-    const newSeekHeadSizeVint = encodeVint(newSeekHeadData.length);
-    const newSeekHeadTotal = newSeekHeadIdSize + newSeekHeadSizeVint.length + newSeekHeadData.length;
-
-    // Available space = old SeekHead + Void padding immediately after it
-    const oldSeekHeadTotal = this._seekHeadEl.headSize + this._seekHeadEl.dataSize;
-    const oldVoidTotal = this._voidAfterSeekHeadEl
-      ? this._voidAfterSeekHeadEl.headSize + this._voidAfterSeekHeadEl.dataSize
-      : 0;
-    const totalAvailable = oldSeekHeadTotal + oldVoidTotal;
-
-    if (newSeekHeadTotal > totalAvailable) {
-      // Not enough space in the SeekHead + Void area — the new element will still
-      // be appended but the SeekHead will not reference it.
+  /**
+   * Re-compute the segment size from the current file length and write the
+   * segment size VINT if the length of the encoded VINT has not changed.
+   */
+  private async refreshSegmentSize(): Promise<void> {
+    if (this._segmentSizeVintOffset < 0 || this._segmentSizeVintLength <= 0
+        || this._segmentDataOffset < 0) {
       return;
     }
-
-    // Write new SeekHead
-    await this._stream.seek(this._seekHeadEl.offset, Position.Beginning);
-    await this._stream.writeBlock(combineByteVectors([
-      encodeId(EbmlId.SeekHead),
-      newSeekHeadSizeVint,
-      newSeekHeadData,
-    ]));
-
-    // Update the in-memory SeekHead element descriptor to reflect the new size
-    // (so the next call to updateSeekHeadEntry reads the correct number of bytes)
-    const newSeekHeadHeadSize = newSeekHeadIdSize + newSeekHeadSizeVint.length;
-    this._seekHeadEl = {
-      id: EbmlId.SeekHead,
-      dataSize: newSeekHeadData.length,
-      headSize: newSeekHeadHeadSize,
-      offset: this._seekHeadEl.offset,
-    };
-
-    // Fill remaining space with a C++-compatible Void element
-    const remaining = totalAvailable - newSeekHeadTotal;
-    if (remaining >= 1) {
-      const voidEl = this.renderTaglibCompatVoidElement(remaining);
-      await this._stream.writeBlock(voidEl);
-      // Compute the head size of the void element to update _voidAfterSeekHeadEl
-      const voidIdSize = 1; // 0xEC is 1-byte ID
-      const voidSizeVintLength = Math.min(remaining - voidIdSize, 8);
-      const voidDataSize = remaining - voidIdSize - voidSizeVintLength;
-      this._voidAfterSeekHeadEl = {
-        id: EbmlId.VoidElement,
-        dataSize: voidDataSize,
-        headSize: voidIdSize + voidSizeVintLength,
-        offset: this._seekHeadEl.offset + newSeekHeadHeadSize + newSeekHeadData.length,
-      };
-    } else {
-      this._voidAfterSeekHeadEl = null;
+    const fileLength = await this._stream.length();
+    const newSegDataSize = fileLength - this._segmentDataOffset;
+    const newVint = encodeVint(newSegDataSize, this._segmentSizeVintLength);
+    if (newVint.length === this._segmentSizeVintLength) {
+      await this._stream.seek(this._segmentSizeVintOffset, Position.Beginning);
+      await this._stream.writeBlock(newVint);
     }
   }
 
@@ -765,6 +997,8 @@ export class MatroskaFile extends File {
       const tagsEl = await readElement(this._stream);
       if (tagsEl && tagsEl.id === EbmlId.Tags) {
         this._tagsEl = tagsEl;
+        this._tagsAllocatedSize = tagsEl.headSize + tagsEl.dataSize
+          + await this.scanTrailingVoids(tagsEl.offset + tagsEl.headSize + tagsEl.dataSize, segmentEnd);
         this._tag = await MatroskaTag.parseFromStream(this._stream, tagsEl);
       }
     }
@@ -776,6 +1010,8 @@ export class MatroskaFile extends File {
       const attachmentsEl = await readElement(this._stream);
       if (attachmentsEl && attachmentsEl.id === EbmlId.Attachments) {
         this._attachmentsEl = attachmentsEl;
+        this._attachmentsAllocatedSize = attachmentsEl.headSize + attachmentsEl.dataSize
+          + await this.scanTrailingVoids(attachmentsEl.offset + attachmentsEl.headSize + attachmentsEl.dataSize, segmentEnd);
         if (!this._tag) this._tag = new MatroskaTag();
         await this._tag.parseAttachments(this._stream, attachmentsEl);
       }
@@ -788,6 +1024,8 @@ export class MatroskaFile extends File {
       const chaptersEl = await readElement(this._stream);
       if (chaptersEl && chaptersEl.id === EbmlId.Chapters) {
         this._chaptersEl = chaptersEl;
+        this._chaptersAllocatedSize = chaptersEl.headSize + chaptersEl.dataSize
+          + await this.scanTrailingVoids(chaptersEl.offset + chaptersEl.headSize + chaptersEl.dataSize, segmentEnd);
         this._chapters = await MatroskaChapters.parseFromStream(this._stream, chaptersEl);
         if (this._chapters.isEmpty()) {
           this._chapters = null;
@@ -828,6 +1066,92 @@ export class MatroskaFile extends File {
     }
 
     this._valid = true;
+  }
+
+  /**
+   * Update the in-memory element descriptors ({@link _tagsEl}, {@link _attachmentsEl},
+   * {@link _chaptersEl}) by reading from the current SeekHead and re-parsing
+   * each element from the stream.  Called at the end of every save to ensure
+   * subsequent saves use the correct offsets and sizes.
+   */
+  private async refreshAllElementDescriptors(): Promise<void> {
+    const seek = await this.readAllSeekHeadEntries();
+    const fileLength = await this._stream.length();
+
+    // Tags
+    if (seek.has(EbmlId.Tags) && this._segmentDataOffset >= 0) {
+      const absOff = this._segmentDataOffset + seek.get(EbmlId.Tags)!;
+      await this._stream.seek(absOff, Position.Beginning);
+      const el = await readElement(this._stream);
+      if (el && el.id === EbmlId.Tags) {
+        this._tagsEl = el;
+        this._tagsAllocatedSize = el.headSize + el.dataSize
+          + await this.scanTrailingVoids(el.offset + el.headSize + el.dataSize, fileLength);
+      }
+    } else if (!seek.has(EbmlId.Tags)) {
+      this._tagsEl = null;
+      this._tagsAllocatedSize = 0;
+    }
+
+    // Attachments
+    if (seek.has(EbmlId.Attachments) && this._segmentDataOffset >= 0) {
+      const absOff = this._segmentDataOffset + seek.get(EbmlId.Attachments)!;
+      await this._stream.seek(absOff, Position.Beginning);
+      const el = await readElement(this._stream);
+      if (el && el.id === EbmlId.Attachments) {
+        this._attachmentsEl = el;
+        this._attachmentsAllocatedSize = el.headSize + el.dataSize
+          + await this.scanTrailingVoids(el.offset + el.headSize + el.dataSize, fileLength);
+      }
+    } else if (!seek.has(EbmlId.Attachments)) {
+      this._attachmentsEl = null;
+      this._attachmentsAllocatedSize = 0;
+    }
+
+    // Chapters
+    if (seek.has(EbmlId.Chapters) && this._segmentDataOffset >= 0) {
+      const absOff = this._segmentDataOffset + seek.get(EbmlId.Chapters)!;
+      await this._stream.seek(absOff, Position.Beginning);
+      const el = await readElement(this._stream);
+      if (el && el.id === EbmlId.Chapters) {
+        this._chaptersEl = el;
+        this._chaptersAllocatedSize = el.headSize + el.dataSize
+          + await this.scanTrailingVoids(el.offset + el.headSize + el.dataSize, fileLength);
+      }
+    } else if (!seek.has(EbmlId.Chapters)) {
+      this._chaptersEl = null;
+      this._chaptersAllocatedSize = 0;
+    }
+  }
+
+  /**
+   * Scan forward from `startOffset` for consecutive EBML Void elements
+   * (id=0xEC) and return their combined byte size.  Stops at the first
+   * non-Void element or at `maxOffset`.
+   *
+   * This mirrors C++ TagLib's `accumulateVoidPadding()` which accumulates
+   * void elements immediately following Tags/Attachments/Chapters so that
+   * {@link MatroskaWriteStyle.DoNotShrink} and
+   * {@link MatroskaWriteStyle.AvoidInsert} know the total allocated space.
+   * @param startOffset - Absolute byte offset to begin scanning.
+   * @param maxOffset - Upper bound (exclusive) for the scan.
+   * @returns Total byte size of all leading Void elements.
+   */
+  private async scanTrailingVoids(startOffset: number, maxOffset: number): Promise<number> {
+    let totalVoidSize = 0;
+    await this._stream.seek(startOffset, Position.Beginning);
+    while ((await this._stream.tell()) < maxOffset) {
+      const savedPos = await this._stream.tell();
+      const el = await readElement(this._stream);
+      if (!el || el.id !== EbmlId.VoidElement) {
+        // Not a Void: put stream back and stop scanning
+        await this._stream.seek(savedPos, Position.Beginning);
+        break;
+      }
+      totalVoidSize += el.headSize + el.dataSize;
+      await skipElement(this._stream, el);
+    }
+    return totalVoidSize;
   }
 
   /**
