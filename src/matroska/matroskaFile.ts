@@ -320,16 +320,18 @@ export class MatroskaFile extends File {
     }
 
     // ---- Phase 2: append new elements ----
+    // Order matches C++ TagLib: Chapters, Attachments, Tags
+    // (least likely to change → most likely to change)
     const processedIds = new Set([...finalAbsOffsets.keys(), ...removedIds]);
     const newElements: Array<{ data: ByteVector; id: number }> = [];
-    if (!processedIds.has(EbmlId.Tags) && newTagsData && newTagsData.length > 0) {
-      newElements.push({ data: newTagsData, id: EbmlId.Tags });
+    if (!processedIds.has(EbmlId.Chapters) && newChaptersData && newChaptersData.length > 0) {
+      newElements.push({ data: newChaptersData, id: EbmlId.Chapters });
     }
     if (!processedIds.has(EbmlId.Attachments) && newAttachmentsData && newAttachmentsData.length > 0) {
       newElements.push({ data: newAttachmentsData, id: EbmlId.Attachments });
     }
-    if (!processedIds.has(EbmlId.Chapters) && newChaptersData && newChaptersData.length > 0) {
-      newElements.push({ data: newChaptersData, id: EbmlId.Chapters });
+    if (!processedIds.has(EbmlId.Tags) && newTagsData && newTagsData.length > 0) {
+      newElements.push({ data: newTagsData, id: EbmlId.Tags });
     }
     // Compute append positions and write without touching SeekHead yet
     let appendCursor = await this._stream.length();
@@ -457,16 +459,16 @@ export class MatroskaFile extends File {
       }
     }
 
-    // Append completely new elements
+    // Append completely new elements (order: Chapters, Attachments, Tags – matches C++)
     const processedIds = new Set(existingEls.map(e => e.id));
-    if (!processedIds.has(EbmlId.Tags) && newTagsData && newTagsData.length > 0) {
-      await this.appendAtEndOfSegment(newTagsData, EbmlId.Tags);
+    if (!processedIds.has(EbmlId.Chapters) && newChaptersData && newChaptersData.length > 0) {
+      await this.appendAtEndOfSegment(newChaptersData, EbmlId.Chapters);
     }
     if (!processedIds.has(EbmlId.Attachments) && newAttachmentsData && newAttachmentsData.length > 0) {
       await this.appendAtEndOfSegment(newAttachmentsData, EbmlId.Attachments);
     }
-    if (!processedIds.has(EbmlId.Chapters) && newChaptersData && newChaptersData.length > 0) {
-      await this.appendAtEndOfSegment(newChaptersData, EbmlId.Chapters);
+    if (!processedIds.has(EbmlId.Tags) && newTagsData && newTagsData.length > 0) {
+      await this.appendAtEndOfSegment(newTagsData, EbmlId.Tags);
     }
 
     // Update in-memory element descriptors for next save

@@ -952,13 +952,17 @@ export class QtChapters extends Mp4ChapterHolder {
     await stream.seek(audio.trak.offset);
     await stream.writeBlock(ByteVector.fromUInt(audioTrakSize + trefAtom.length));
 
-    // Fix moov size (both tref and chapter trak are inside moov)
-    const updatedAtoms = await parseAtoms(stream);
-    const moovPath = updatedAtoms.path("moov");
+    // Fix moov size (both tref and chapter trak are inside moov).
+    // Use the ORIGINAL atom tree (atoms / audio) – moov offset is unchanged because it
+    // precedes insertOffset, so no re-parse is needed here.
+    const moovPath = atoms.path("moov");
     await updateParentSizes(stream, moovPath, combinedPayload.length);
 
-    // Fix existing chunk offsets (original atom tree only – new chapter stco is correct)
-    await updateChunkOffsets(stream, updatedAtoms, combinedPayload.length, insertOffset);
+    // Fix existing chunk offsets using the ORIGINAL atom tree so that the new chapter
+    // trak's stco (which already carries the correct final offset) is NOT touched.
+    // Passing `atoms` (pre-insertion tree) mirrors the C++ `activeAtoms` usage in
+    // mp4qtchapterlist.cpp:1261 ("original atom tree only – new chapter stco is correct").
+    await updateChunkOffsets(stream, atoms, combinedPayload.length, insertOffset);
 
     // Phase 4: Append text samples in mdat at EOF
     const textSamples = new ByteVector();
