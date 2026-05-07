@@ -337,9 +337,11 @@ export class Id3v2FrameFactory {
       return OwnershipFrame.fromData(frameData, frameHeader, version);
     }
 
-    // Chapter frame
+    // Chapter frame — pass this factory's createFrame as the sub-frame parser
+    // so embedded TIT2 / other sub-frames inside CHAP are fully parsed.
     if (frameId === "CHAP") {
-      return ChapterFrame.fromData(frameData, frameHeader, version);
+      return ChapterFrame.fromData(frameData, frameHeader, version,
+        (data, v) => this.createFrame(data, { majorVersion: v } as unknown as Id3v2Header, 0).frame ?? undefined);
     }
 
     // Table of contents frame

@@ -2,7 +2,7 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import { describe, expect, it } from "vitest";
 import { FileRef } from "../fileRef.js";
-import { MatroskaFile } from "../matroska/matroskaFile.js";
+import { MatroskaFile, MatroskaWriteStyle } from "../matroska/matroskaFile.js";
 import { type SimpleTag, TargetTypeValue } from "../matroska/matroskaTag.js";
 import { ByteVector } from "../byteVector.js";
 import { ByteVectorStream } from "../toolkit/byteVectorStream.js";
@@ -642,6 +642,349 @@ describe("Matroska", () => {
       const f2 = await MatroskaFile.open(new ByteVectorStream(data2), true, ReadStyle.Average);
       expect(f2.chapters()).toBeNull();
       expect(f2.complexPropertyKeys()).not.toContain("CHAPTERS");
+    });
+  });
+
+  describe("WriteStyle", () => {
+    it("testSaveTypes", async () => {
+      // C++: test_matroska.cpp – TestMatroska::testSaveTypes
+      const setLargeTags = (f: MatroskaFile) => {
+        const tag = f.tag()!;
+        tag.simpleTags.push(
+          { name: "TITLE", value: "A Very Long Title That Takes Up A Lot Of Space In The File 1234567890", language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+          { name: "ARTIST", value: "A Very Long Artist Name That Takes Up A Lot Of Space In The File 1234567890", language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+        );
+      };
+      const setSmallTags = (f: MatroskaFile) => {
+        const tag = f.tag()!;
+        tag.simpleTags.push(
+          { name: "TITLE", value: "Short", language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+        );
+      };
+      const setMediumTags = (f: MatroskaFile) => {
+        const tag = f.tag()!;
+        tag.simpleTags.push(
+          { name: "TITLE", value: "Medium Title 12345678901234", language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+          { name: "ARTIST", value: "Medium Artist", language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+        );
+      };
+      const setExtraLargeTags = (f: MatroskaFile) => {
+        const tag = f.tag()!;
+        tag.simpleTags.push(
+          { name: "TITLE", value: "An Extremely Long Title That Is Even Larger Than The Previous Large Title With Extra Content To Ensure Growth 0123456789ABCDEF", language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+          { name: "ARTIST", value: "An Extremely Long Artist Name Exceeding The Prior Large Artist Value With Even More Content To Guarantee Growth 0123456789ABCDEF", language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+        );
+      };
+
+      const setLargeAttachments = (f: MatroskaFile) => {
+        f.tag()!.attachedFiles.push({ data: ByteVector.fromByteArray(new Uint8Array(200).fill(0x78)), fileName: "cover.jpg", mediaType: "image/jpeg", uid: 111, description: "Cover" });
+      };
+      const setSmallAttachments = (f: MatroskaFile) => {
+        f.tag()!.attachedFiles.push({ data: ByteVector.fromByteArray(new Uint8Array(20).fill(0x78)), fileName: "img.png", mediaType: "image/png", uid: 222, description: "Img" });
+      };
+      const setMediumAttachments = (f: MatroskaFile) => {
+        f.tag()!.attachedFiles.push({ data: ByteVector.fromByteArray(new Uint8Array(80).fill(0x78)), fileName: "cover.jpg", mediaType: "image/jpeg", uid: 333, description: "Cover" });
+      };
+      const setExtraLargeAttachments = (f: MatroskaFile) => {
+        f.tag()!.attachedFiles.push({ data: ByteVector.fromByteArray(new Uint8Array(500).fill(0x78)), fileName: "cover.jpg", mediaType: "image/jpeg", uid: 444, description: "Cover" });
+      };
+
+      const setLargeChapters = (f: MatroskaFile) => {
+        f.chapters(true)!.addEdition({ uid: 0, isDefault: true, isOrdered: false, chapters: [
+          { uid: 1, timeStart: 0, timeEnd: 40000, isHidden: false, displays: [{ string: "Chapter One Long Name", language: "eng" }] },
+          { uid: 2, timeStart: 40000, timeEnd: 80000, isHidden: false, displays: [{ string: "Chapter Two Long Name", language: "eng" }] },
+        ] });
+      };
+      const setSmallChapters = (f: MatroskaFile) => {
+        f.chapters(true)!.addEdition({ uid: 0, isDefault: false, isOrdered: false, chapters: [
+          { uid: 1, timeStart: 0, timeEnd: 1000, isHidden: false, displays: [{ string: "A", language: "und" }] },
+        ] });
+      };
+      const setMediumChapters = (f: MatroskaFile) => {
+        f.chapters(true)!.addEdition({ uid: 0, isDefault: true, isOrdered: false, chapters: [
+          { uid: 1, timeStart: 0, timeEnd: 40000, isHidden: false, displays: [{ string: "Chapter Medium", language: "eng" }] },
+        ] });
+      };
+      const setExtraLargeChapters = (f: MatroskaFile) => {
+        f.chapters(true)!.addEdition({ uid: 0, isDefault: true, isOrdered: true, chapters: [
+          { uid: 1, timeStart: 0, timeEnd: 40000, isHidden: false, displays: [{ string: "Chapter One Extremely Long Name Here", language: "eng" }, { string: "Kapitel Eins Sehr Langer Name", language: "deu" }] },
+          { uid: 2, timeStart: 40000, timeEnd: 80000, isHidden: false, displays: [{ string: "Chapter Two Extremely Long Name Here", language: "eng" }, { string: "Kapitel Zwei Sehr Langer Name", language: "deu" }] },
+          { uid: 3, timeStart: 80000, timeEnd: 120000, isHidden: true, displays: [{ string: "Chapter Three Extra Large", language: "eng" }] },
+        ] });
+      };
+
+      const verifyRound = async (
+        data: ByteVector,
+        label: string,
+        expectedTitle: string,
+        expectedAttachmentUid: number,
+        expectedChapterCount: number,
+        expectedFirstChapterEnd: number,
+      ) => {
+        const f = await MatroskaFile.open(new ByteVectorStream(data), true, ReadStyle.Accurate);
+        expect(f.isValid, `${label} valid`).toBe(true);
+        const tag = f.tag()!;
+        const foundTitle = tag.simpleTags.some(st => st.name === "TITLE" && st.value === expectedTitle);
+        expect(foundTitle, `${label} TITLE roundtrip`).toBe(true);
+        const foundAtt = tag.attachedFiles.some(a => a.uid === expectedAttachmentUid);
+        expect(foundAtt, `${label} attachment uid roundtrip`).toBe(true);
+        const chs = f.chapters()!;
+        expect(chs, `${label} chapters`).not.toBeNull();
+        expect(chs.editions.length, `${label} edition count`).toBe(1);
+        const edition = chs.editions[0];
+        expect(edition.chapters.length, `${label} chapter count`).toBe(expectedChapterCount);
+        expect(edition.chapters[0].timeEnd, `${label} first chapter end`).toBe(expectedFirstChapterEnd);
+      };
+
+      for (const writeStyle of [MatroskaWriteStyle.Compact, MatroskaWriteStyle.DoNotShrink, MatroskaWriteStyle.AvoidInsert]) {
+        // Start from a clean file each write-style iteration
+        const origStream = openTestStream("no-tags.mka");
+        const f1 = await MatroskaFile.open(origStream, true, ReadStyle.Average);
+
+        // --- Round 1: save large data ---
+        setLargeTags(f1);
+        setLargeAttachments(f1);
+        setLargeChapters(f1);
+        expect(await f1.save(writeStyle), `Round1 save ws=${writeStyle}`).toBe(true);
+        const sizeAfterRound1 = (f1.stream() as ByteVectorStream).data().length;
+        await verifyRound((f1.stream() as ByteVectorStream).data(), `Round1 ws=${writeStyle}`,
+          "A Very Long Title That Takes Up A Lot Of Space In The File 1234567890", 111, 2, 40000);
+
+        // --- Round 2: save smaller data ---
+        f1.tag()!.simpleTags.splice(0);
+        f1.tag()!.attachedFiles = [];
+        f1.chapters()!.editions.splice(0);
+        setSmallTags(f1);
+        setSmallAttachments(f1);
+        setSmallChapters(f1);
+        expect(await f1.save(writeStyle), `Round2 save ws=${writeStyle}`).toBe(true);
+        const sizeAfterRound2 = (f1.stream() as ByteVectorStream).data().length;
+        await verifyRound((f1.stream() as ByteVectorStream).data(), `Round2 ws=${writeStyle}`,
+          "Short", 222, 1, 1000);
+
+        if (writeStyle === MatroskaWriteStyle.Compact) {
+          expect(sizeAfterRound2, `Compact Round2 < Round1 ws=${writeStyle}`).toBeLessThan(sizeAfterRound1);
+        } else if (writeStyle === MatroskaWriteStyle.AvoidInsert) {
+          expect(sizeAfterRound2, `AvoidInsert Round2 <= Round1 ws=${writeStyle}`).toBeLessThanOrEqual(sizeAfterRound1);
+        } else {
+          expect(sizeAfterRound2, `DoNotShrink Round2 = Round1 ws=${writeStyle}`).toBe(sizeAfterRound1);
+        }
+
+        // --- Round 3: save medium data ---
+        f1.tag()!.simpleTags.splice(0);
+        f1.tag()!.attachedFiles = [];
+        f1.chapters()!.editions.splice(0);
+        setMediumTags(f1);
+        setMediumAttachments(f1);
+        setMediumChapters(f1);
+        expect(await f1.save(writeStyle), `Round3 save ws=${writeStyle}`).toBe(true);
+        const sizeAfterRound3 = (f1.stream() as ByteVectorStream).data().length;
+        await verifyRound((f1.stream() as ByteVectorStream).data(), `Round3 ws=${writeStyle}`,
+          "Medium Title 12345678901234", 333, 1, 40000);
+
+        if (writeStyle === MatroskaWriteStyle.Compact) {
+          expect(sizeAfterRound3, `Compact Round3 != Round2 ws=${writeStyle}`).not.toBe(sizeAfterRound2);
+          expect(sizeAfterRound3, `Compact Round3 < Round1 ws=${writeStyle}`).toBeLessThan(sizeAfterRound1);
+        } else if (writeStyle === MatroskaWriteStyle.AvoidInsert) {
+          expect(sizeAfterRound3, `AvoidInsert Round3 <= Round1 ws=${writeStyle}`).toBeLessThanOrEqual(sizeAfterRound1);
+        } else {
+          expect(sizeAfterRound3, `DoNotShrink Round3 = Round1 ws=${writeStyle}`).toBe(sizeAfterRound1);
+        }
+
+        // --- Round 4: save extra-large data ---
+        f1.tag()!.simpleTags.splice(0);
+        f1.tag()!.attachedFiles = [];
+        f1.chapters()!.editions.splice(0);
+        setExtraLargeTags(f1);
+        setExtraLargeAttachments(f1);
+        setExtraLargeChapters(f1);
+        expect(await f1.save(writeStyle), `Round4 save ws=${writeStyle}`).toBe(true);
+        const sizeAfterRound4 = (f1.stream() as ByteVectorStream).data().length;
+        await verifyRound((f1.stream() as ByteVectorStream).data(), `Round4 ws=${writeStyle}`,
+          "An Extremely Long Title That Is Even Larger Than The Previous Large Title With Extra Content To Ensure Growth 0123456789ABCDEF",
+          444, 3, 40000);
+
+        expect(sizeAfterRound4, `Round4 > Round1 all styles ws=${writeStyle}`).toBeGreaterThan(sizeAfterRound1);
+      }
+    });
+
+    it("testSaveTypesBeforeCues", async () => {
+      // C++: test_matroska.cpp – TestMatroska::testSaveTypesBeforeCues
+      // tags-before-cues.mkv layout:
+      //   SeekHead | Void | SegInfo | Tracks | Tags | Cluster | Cues
+      const origStream = openTestStream("tags-before-cues.mkv");
+      const origF = await MatroskaFile.open(origStream, true, ReadStyle.Average);
+      const origData = (origF.stream() as ByteVectorStream).data();
+
+      // Cluster ID does not appear in the SeekHead of this file
+      const clusterIdBytes = ByteVector.fromUInt(0x1F43B675, true);
+      const tagsIdBytes    = ByteVector.fromUInt(0x1254C367, true);
+      const cuesIdBytes    = ByteVector.fromUInt(0x1C53BB6B, true);
+      const origClusterPos = origData.find(clusterIdBytes);
+      expect(origClusterPos).toBeGreaterThan(0);
+
+      const longTitle = "An Extremely Long Title Value That Is Definitely Larger Than The Original Tags Element In The File Because It Contains Many Characters To Ensure That The AvoidInsert Move-To-End Behavior Triggers Here";
+      const longArtist = "An Extremely Long Artist Name Value That Is Also Larger Than The Original Tags Element And Together With The Title Tag Makes The Rendered Output Exceed The Original Tags Size So The AvoidInsert Triggers";
+
+      for (const writeStyle of [MatroskaWriteStyle.Compact, MatroskaWriteStyle.DoNotShrink, MatroskaWriteStyle.AvoidInsert]) {
+        const wsLabel = `ws=${writeStyle}`;
+        // Start fresh from original for each write style
+        const stream1 = new ByteVectorStream(origData);
+        const f = await MatroskaFile.open(stream1, true, ReadStyle.Average);
+        expect(f.isValid, `Open ${wsLabel}`).toBe(true);
+
+        // Clear existing simple tags and set long new ones
+        f.tag()!.simpleTags.splice(0);
+        f.tag()!.simpleTags.push(
+          { name: "TITLE", value: longTitle, language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+          { name: "ARTIST", value: longArtist, language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+        );
+        expect(await f.save(writeStyle), `Save ${wsLabel}`).toBe(true);
+
+        // Validate with Accurate mode (verifies SeekHead entries)
+        const savedData = (f.stream() as ByteVectorStream).data();
+        const f2 = await MatroskaFile.open(new ByteVectorStream(savedData), true, ReadStyle.Accurate);
+        expect(f2.isValid, `Reopen valid ${wsLabel}`).toBe(true);
+        const tag2 = f2.tag();
+        expect(tag2, `Tag exists ${wsLabel}`).not.toBeNull();
+        const foundTitle = tag2!.simpleTags.some(st => st.name === "TITLE" && st.value === longTitle);
+        const foundArtist = tag2!.simpleTags.some(st => st.name === "ARTIST" && st.value === longArtist);
+        expect(foundTitle, `TITLE roundtrip ${wsLabel}`).toBe(true);
+        expect(foundArtist, `ARTIST roundtrip ${wsLabel}`).toBe(true);
+
+        const newClusterPos = savedData.find(clusterIdBytes);
+        expect(newClusterPos, `Cluster present ${wsLabel}`).toBeGreaterThan(0);
+
+        if (writeStyle === MatroskaWriteStyle.AvoidInsert) {
+          // Cluster must NOT shift in AvoidInsert mode
+          expect(newClusterPos, `AvoidInsert must not shift Cluster`).toBe(origClusterPos);
+          // Tags must be appended after Cues
+          const cuesPos    = savedData.find(cuesIdBytes, newClusterPos);
+          const newTagsPos = savedData.find(tagsIdBytes, cuesPos + 4);
+          expect(newTagsPos, `Tags appended after Cues ${wsLabel}`).toBeGreaterThan(cuesPos);
+        } else {
+          // Compact/DoNotShrink: Tags grew in place → Cluster must shift
+          expect(newClusterPos, `Cluster must shift when growing in place ${wsLabel}`).toBeGreaterThan(origClusterPos);
+        }
+      }
+    });
+
+    it("testSaveTypesNoTrailingVoid", async () => {
+      // C++: test_matroska.cpp – TestMatroska::testSaveTypesNoTrailingVoid
+      const origStream = openTestStream("tags-before-cues.mkv");
+      const origF = await MatroskaFile.open(origStream, true, ReadStyle.Average);
+      const origData = (origF.stream() as ByteVectorStream).data();
+
+      const longTitle = "An Extremely Long Title Value That Is Definitely Larger Than The Original Tags Element In The File Because It Contains Many Characters To Ensure That The AvoidInsert Move-To-End Behavior Triggers Here";
+      const longArtist = "An Extremely Long Artist Name Value That Is Also Larger Than The Original Tags Element And Together With The Title Tag Makes The Rendered Output Exceed The Original Tags Size So The AvoidInsert Triggers";
+
+      // Round 1: enlarge Tags so they get moved to the end (AvoidInsert)
+      const stream1 = new ByteVectorStream(origData);
+      const f1 = await MatroskaFile.open(stream1, true, ReadStyle.Average);
+      expect(f1.isValid).toBe(true);
+      f1.tag()!.simpleTags.splice(0);
+      f1.tag()!.simpleTags.push(
+        { name: "TITLE", value: longTitle, language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+        { name: "ARTIST", value: longArtist, language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+      );
+      expect(await f1.save(MatroskaWriteStyle.AvoidInsert)).toBe(true);
+      const sizeAfterRound1 = (f1.stream() as ByteVectorStream).data().length;
+
+      // Round 2: shrink Tags – trailing element must shrink without leaving a Void
+      const data1 = (f1.stream() as ByteVectorStream).data();
+      const f2 = await MatroskaFile.open(new ByteVectorStream(data1), true, ReadStyle.Average);
+      expect(f2.isValid).toBe(true);
+      f2.tag()!.simpleTags.splice(0);
+      f2.tag()!.simpleTags.push(
+        { name: "TITLE", value: "X", language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+      );
+      expect(await f2.save(MatroskaWriteStyle.AvoidInsert)).toBe(true);
+
+      const f3 = await MatroskaFile.open(new ByteVectorStream((f2.stream() as ByteVectorStream).data()), true, ReadStyle.Accurate);
+      expect(f3.isValid).toBe(true);
+      expect(f3.tag()).not.toBeNull();
+
+      const newData = (f2.stream() as ByteVectorStream).data();
+
+      // File must have shrunk
+      expect(newData.length).toBeLessThan(sizeAfterRound1);
+
+      // The last bytes must be the (small) Tags element, not a Void.
+      // Find Tags element after Cues and verify the file ends exactly at Tags' end.
+      const clusterIdBytes = ByteVector.fromUInt(0x1F43B675, true);
+      const cuesIdBytes    = ByteVector.fromUInt(0x1C53BB6B, true);
+      const tagsIdBytes    = ByteVector.fromUInt(0x1254C367, true);
+      const clusterPos = newData.find(clusterIdBytes);
+      const cuesPos    = newData.find(cuesIdBytes, clusterPos);
+      const tagsPos    = newData.find(tagsIdBytes, cuesPos + 4);
+      expect(tagsPos).toBeGreaterThan(cuesPos);
+
+      // Decode VINT data size of the Tags element (4-byte ID, then VINT)
+      const vintFirst = newData.get(tagsPos + 4);
+      let vintLen = 1;
+      for (let b = 0; b < 8; b++) {
+        if (vintFirst & (0x80 >> b)) { vintLen = b + 1; break; }
+      }
+      let dataSize = vintFirst & ((0x80 >> (vintLen - 1)) - 1);
+      for (let i = 1; i < vintLen; i++) {
+        dataSize = (dataSize * 256) + newData.get(tagsPos + 4 + i);
+      }
+      const tagsEnd = tagsPos + 4 + vintLen + dataSize;
+      expect(tagsEnd, "No trailing EBML void must remain at the end of the segment").toBe(newData.length);
+    });
+
+    it("testSaveTypesReclaimVoid", async () => {
+      // C++: test_matroska.cpp – TestMatroska::testSaveTypesReclaimVoid
+      const origStream = openTestStream("tags-before-cues.mkv");
+      const origF = await MatroskaFile.open(origStream, true, ReadStyle.Average);
+      const origData = (origF.stream() as ByteVectorStream).data();
+
+      const longTitle = "An Extremely Long Title Value That Is Definitely Larger Than The Original Tags Element In The File Because It Contains Many Characters To Ensure That The AvoidInsert Move-To-End Behavior Triggers Here";
+      const longArtist = "An Extremely Long Artist Name Value That Is Also Larger Than The Original Tags Element And Together With The Title Tag Makes The Rendered Output Exceed The Original Tags Size So The AvoidInsert Triggers";
+
+      // Step 1: AvoidInsert with enlarged Tags → Tags moved to end, Void in original slot
+      const stream1 = new ByteVectorStream(origData);
+      const f1 = await MatroskaFile.open(stream1, true, ReadStyle.Average);
+      expect(f1.isValid).toBe(true);
+      f1.tag()!.simpleTags.splice(0);
+      f1.tag()!.simpleTags.push(
+        { name: "TITLE", value: longTitle, language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+        { name: "ARTIST", value: longArtist, language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+      );
+      expect(await f1.save(MatroskaWriteStyle.AvoidInsert)).toBe(true);
+      const sizeAfterAvoidInsert = (f1.stream() as ByteVectorStream).data().length;
+      expect(sizeAfterAvoidInsert).toBeGreaterThan(origData.length);
+
+      // Step 2: Compact with short tag – reclaim the void from the prior move
+      const data1 = (f1.stream() as ByteVectorStream).data();
+      const f2 = await MatroskaFile.open(new ByteVectorStream(data1), true, ReadStyle.Average);
+      expect(f2.isValid).toBe(true);
+      f2.tag()!.simpleTags.splice(0);
+      f2.tag()!.simpleTags.push(
+        { name: "TITLE", value: "X", language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+      );
+      expect(await f2.save(MatroskaWriteStyle.Compact)).toBe(true);
+      const sizeAfterCompact = (f2.stream() as ByteVectorStream).data().length;
+      expect(sizeAfterCompact, "Compact must reclaim space after AvoidInsert grew the file").toBeLessThan(sizeAfterAvoidInsert);
+
+      // Reference: applying Compact directly to original with same tiny tags
+      const refStream = new ByteVectorStream(origData);
+      const fRef = await MatroskaFile.open(refStream, true, ReadStyle.Average);
+      fRef.tag()!.simpleTags.splice(0);
+      fRef.tag()!.simpleTags.push(
+        { name: "TITLE", value: "X", language: "und", defaultLanguageFlag: true, targetTypeValue: TargetTypeValue.Track, trackUid: 0, editionUid: 0, chapterUid: 0, attachmentUid: 0 },
+      );
+      expect(await fRef.save(MatroskaWriteStyle.Compact)).toBe(true);
+      const referenceCompactSize = (fRef.stream() as ByteVectorStream).data().length;
+      expect(referenceCompactSize).toBeLessThanOrEqual(sizeAfterCompact);
+
+      // File must round-trip correctly
+      const f3 = await MatroskaFile.open(new ByteVectorStream((f2.stream() as ByteVectorStream).data()), true, ReadStyle.Accurate);
+      expect(f3.isValid).toBe(true);
+      const tag3 = f3.tag();
+      expect(tag3).not.toBeNull();
+      const foundTitle = tag3!.simpleTags.some(st => st.name === "TITLE" && st.value === "X");
+      expect(foundTitle).toBe(true);
     });
   });
 

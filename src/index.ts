@@ -142,7 +142,7 @@ export { AsfAttribute, AsfAttributeType } from "./asf/asfAttribute.js";
 export { AsfPicture, AsfPictureType } from "./asf/asfPicture.js";
 
 // Matroska (MKV/MKA/WebM)
-export { MatroskaFile } from "./matroska/matroskaFile.js";
+export { MatroskaFile, MatroskaWriteStyle } from "./matroska/matroskaFile.js";
 export { MatroskaTag, TargetTypeValue as MatroskaTargetTypeValue } from "./matroska/matroskaTag.js";
 export type { SimpleTag as MatroskaSimpleTag, AttachedFile as MatroskaAttachedFile } from "./matroska/matroskaTag.js";
 export { MatroskaProperties } from "./matroska/matroskaProperties.js";
