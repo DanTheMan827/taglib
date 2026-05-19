@@ -135,6 +135,13 @@ jobs:
           name: npm-package-tarball
           path: "*.tgz"
 
+      - name: Upload workspace artifact
+        uses: actions/upload-artifact@v7
+        if: matrix.artifacts == 'yes'
+        with:
+          name: workspace
+          path: .
+
       - name: Test
         run: |
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
@@ -169,10 +176,11 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout (with submodules)
-        uses: actions/checkout@v6
+      - name: Download workspace from CI
+        uses: actions/download-artifact@v8
         with:
-          submodules: recursive
+          name: workspace
+          path: .
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v6
