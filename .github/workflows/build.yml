@@ -192,6 +192,8 @@ jobs:
           files: "*.tgz"
 
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        run: 
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
