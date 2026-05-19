@@ -16,6 +16,24 @@ import {
 } from "./ebml/ebmlElement.js";
 
 /**
+ * Start of the synthetic ChapterUID range used for UID-less chapters.
+ * JavaScript numbers cannot represent C++'s `(1ULL << 63)` marker exactly,
+ * so taglib-ts reserves a small, process-local safe-integer range instead.
+ */
+const SYNTHETIC_CHAPTER_UID_START = Number.MAX_SAFE_INTEGER - 0xFFFFF;
+
+/** Monotonic counter for synthetic ChapterUID generation. */
+let syntheticChapterUidCounter = 0;
+
+/**
+ * Returns a process-local synthetic ChapterUID for a chapter that omitted one.
+ */
+function nextSyntheticChapterUid(): number {
+  syntheticChapterUidCounter++;
+  return SYNTHETIC_CHAPTER_UID_START + syntheticChapterUidCounter;
+}
+
+/**
  * Represents a single chapter display entry (localised title + language).
  */
 export interface ChapterDisplay {
@@ -115,9 +133,7 @@ export class MatroskaChapters {
     for (const edEl of editionEls) {
       if (edEl.id === EbmlId.ChapterAtom) {
         const chapter = await MatroskaChapters.parseChapter(stream, edEl);
-        if (chapter.uid !== 0) {
-          orphanChapters.push(chapter);
-        }
+        orphanChapters.push(chapter);
       } else if (edEl.id === EbmlId.EditionEntry) {
         const edition = await MatroskaChapters.parseEdition(stream, edEl);
         chapters._editions.push(edition);
@@ -208,6 +224,9 @@ export class MatroskaChapters {
           break;
         }
       }
+    }
+    if (chapter.uid === 0) {
+      chapter.uid = nextSyntheticChapterUid();
     }
     return chapter;
   }

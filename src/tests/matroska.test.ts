@@ -2,8 +2,17 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import { describe, expect, it } from "vitest";
 import { FileRef } from "../fileRef.js";
+import {
+  EbmlId,
+  combineByteVectors,
+  readElement,
+  renderEbmlElement,
+  renderStringElement,
+  renderUintElement,
+} from "../matroska/ebml/ebmlElement.js";
 import { MatroskaFile, MatroskaWriteStyle } from "../matroska/matroskaFile.js";
-import { type SimpleTag, TargetTypeValue } from "../matroska/matroskaTag.js";
+import { MatroskaChapters } from "../matroska/matroskaChapters.js";
+import { TargetTypeValue } from "../matroska/matroskaTag.js";
 import { ByteVector } from "../byteVector.js";
 import { ByteVectorStream } from "../toolkit/byteVectorStream.js";
 import { PropertyMap } from "../toolkit/propertyMap.js";
@@ -514,7 +523,7 @@ describe("Matroska", () => {
         description: "Cover",
         fileName: "cover.jpg",
         mediaType: "image/jpeg",
-        data: ByteVector.fromByteArray(new Uint8Array(20000).fill(0x78)), // 'x' * 20000
+        data: ByteVector.fromByteArray(new Uint8Array(20000).fill(0x78)), // "x" * 20000
         uid: 5081000385627515000, // Note: JS precision loss from 5081000385627515072ULL
       });
       expect(await f.save()).toBe(true);
@@ -642,6 +651,75 @@ describe("Matroska", () => {
       const f2 = await MatroskaFile.open(new ByteVectorStream(data2), true, ReadStyle.Average);
       expect(f2.chapters()).toBeNull();
       expect(f2.complexPropertyKeys()).not.toContain("CHAPTERS");
+    });
+
+    it("should synthesize UIDs for chapters without ChapterUID", async () => {
+      // TypeScript-only test
+      const wrappedChapter = renderEbmlElement(
+        EbmlId.ChapterAtom,
+        combineByteVectors([
+          renderUintElement(EbmlId.ChapterTimeStart, 0),
+          renderUintElement(EbmlId.ChapterTimeEnd, 1_000),
+          renderUintElement(EbmlId.ChapterFlagHidden, 0),
+          renderEbmlElement(
+            EbmlId.ChapterDisplay,
+            combineByteVectors([
+              renderStringElement(EbmlId.ChapString, "Wrapped chapter"),
+              renderStringElement(EbmlId.ChapLanguage, "eng"),
+            ]),
+          ),
+        ]),
+      );
+      const orphanChapter = renderEbmlElement(
+        EbmlId.ChapterAtom,
+        combineByteVectors([
+          renderUintElement(EbmlId.ChapterTimeStart, 1_000),
+          renderUintElement(EbmlId.ChapterTimeEnd, 2_000),
+          renderUintElement(EbmlId.ChapterFlagHidden, 0),
+          renderEbmlElement(
+            EbmlId.ChapterDisplay,
+            combineByteVectors([
+              renderStringElement(EbmlId.ChapString, "Orphan chapter"),
+              renderStringElement(EbmlId.ChapLanguage, "eng"),
+            ]),
+          ),
+        ]),
+      );
+      const data = renderEbmlElement(
+        EbmlId.Chapters,
+        combineByteVectors([
+          renderEbmlElement(
+            EbmlId.EditionEntry,
+            combineByteVectors([
+              renderUintElement(EbmlId.EditionFlagDefault, 1),
+              renderUintElement(EbmlId.EditionFlagOrdered, 0),
+              wrappedChapter,
+            ]),
+          ),
+          orphanChapter,
+        ]),
+      );
+      const stream = new ByteVectorStream(data);
+      const chaptersEl = await readElement(stream);
+
+      expect(chaptersEl).not.toBeNull();
+      expect(chaptersEl!.id).toBe(EbmlId.Chapters);
+
+      const chapters = await MatroskaChapters.parseFromStream(stream, chaptersEl!);
+      expect(chapters.editions.length).toBe(2);
+
+      const wrappedEdition = chapters.editions[0];
+      expect(wrappedEdition.chapters.length).toBe(1);
+      expect(wrappedEdition.chapters[0].uid).toBeGreaterThan(0);
+      expect(wrappedEdition.chapters[0].displays[0].string).toBe("Wrapped chapter");
+
+      const orphanEdition = chapters.editions[1];
+      expect(orphanEdition.isDefault).toBe(true);
+      expect(orphanEdition.chapters.length).toBe(1);
+      expect(orphanEdition.chapters[0].uid).toBeGreaterThan(0);
+      expect(orphanEdition.chapters[0].displays[0].string).toBe("Orphan chapter");
+
+      expect(wrappedEdition.chapters[0].uid).not.toBe(orphanEdition.chapters[0].uid);
     });
   });
 
@@ -857,7 +935,7 @@ describe("Matroska", () => {
 
         if (writeStyle === MatroskaWriteStyle.AvoidInsert) {
           // Cluster must NOT shift in AvoidInsert mode
-          expect(newClusterPos, `AvoidInsert must not shift Cluster`).toBe(origClusterPos);
+          expect(newClusterPos, "AvoidInsert must not shift Cluster").toBe(origClusterPos);
           // Tags must be appended after Cues
           const cuesPos    = savedData.find(cuesIdBytes, newClusterPos);
           const newTagsPos = savedData.find(tagsIdBytes, cuesPos + 4);
@@ -1033,4 +1111,3 @@ describe("Matroska", () => {
     });
   });
 });
-
