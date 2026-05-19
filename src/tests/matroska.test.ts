@@ -12,7 +12,7 @@ import {
 } from "../matroska/ebml/ebmlElement.js";
 import { MatroskaFile, MatroskaWriteStyle } from "../matroska/matroskaFile.js";
 import { MatroskaChapters } from "../matroska/matroskaChapters.js";
-import { type SimpleTag, TargetTypeValue } from "../matroska/matroskaTag.js";
+import { TargetTypeValue } from "../matroska/matroskaTag.js";
 import { ByteVector } from "../byteVector.js";
 import { ByteVectorStream } from "../toolkit/byteVectorStream.js";
 import { PropertyMap } from "../toolkit/propertyMap.js";
@@ -523,7 +523,7 @@ describe("Matroska", () => {
         description: "Cover",
         fileName: "cover.jpg",
         mediaType: "image/jpeg",
-        data: ByteVector.fromByteArray(new Uint8Array(20000).fill(0x78)), // 'x' * 20000
+        data: ByteVector.fromByteArray(new Uint8Array(20000).fill(0x78)), // "x" * 20000
         uid: 5081000385627515000, // Note: JS precision loss from 5081000385627515072ULL
       });
       expect(await f.save()).toBe(true);
@@ -935,7 +935,7 @@ describe("Matroska", () => {
 
         if (writeStyle === MatroskaWriteStyle.AvoidInsert) {
           // Cluster must NOT shift in AvoidInsert mode
-          expect(newClusterPos, `AvoidInsert must not shift Cluster`).toBe(origClusterPos);
+          expect(newClusterPos, "AvoidInsert must not shift Cluster").toBe(origClusterPos);
           // Tags must be appended after Cues
           const cuesPos    = savedData.find(cuesIdBytes, newClusterPos);
           const newTagsPos = savedData.find(tagsIdBytes, cuesPos + 4);
